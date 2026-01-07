@@ -62,7 +62,7 @@ const Members = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<'all' | 'myNetwork' | 'requests'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'myNetwork' | 'pending'>('all');
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [connectionStats, setConnectionStats] = useState<ConnectionStats>({
@@ -223,7 +223,7 @@ const Members = () => {
     // Filter by active tab
     if (activeTab === 'myNetwork') {
       result = result.filter(member => member.is_friend);
-    } else if (activeTab === 'requests') {
+    } else if (activeTab === 'pending') {
       result = result.filter(member => member.is_incoming_request);
     }
 
@@ -679,19 +679,19 @@ const Members = () => {
                 </span>
               </button>
               <button
-                onClick={() => setActiveTab('requests')}
+                onClick={() => setActiveTab('pending')}
                 className={`relative flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                  activeTab === 'requests'
+                  activeTab === 'pending'
                     ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white shadow-lg shadow-orange-200/50'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                 }`}
               >
                 <Bell size={16} />
-                Requests
+                Pending
                 <span className="px-2 py-0.5 rounded-full text-xs bg-white/20">
-                  {connectionStats.pending_received + connectionStats.pending_sent}
+                  {connectionStats.pending_received}
                 </span>
-                {(connectionStats.pending_received > 0 || connectionStats.pending_sent > 0) && (
+                {connectionStats.pending_received > 0 && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                 )}
               </button>
@@ -702,14 +702,7 @@ const Members = () => {
         {/* CONNECTION STATS */}
         <div className="mb-6">
           <div className="bg-gradient-to-r from-blue-600/10 to-blue-500/10 backdrop-blur-sm rounded-2xl border border-blue-200/50 p-4">
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-white/80 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-gray-900">{connectionStats.total_members}</div>
-                <div className="text-xs text-gray-600 flex items-center justify-center gap-1">
-                  <Users size={12} />
-                  Total Members
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/80 rounded-xl p-4 text-center">
                 <div className="text-2xl font-bold text-gray-900">{connectionStats.connections}</div>
                 <div className="text-xs text-gray-600 flex items-center justify-center gap-1">
@@ -717,20 +710,11 @@ const Members = () => {
                   Connections
                 </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl p-4 text-center">
+              <div className="bg-white/80 rounded-xl p-4 text-center">
                 <div className="text-2xl font-bold text-gray-900">{connectionStats.pending_received}</div>
                 <div className="text-xs text-gray-600 flex items-center justify-center gap-1">
                   <Bell size={12} />
-                  Requests Received
-                </div>
-              </div>
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-gray-900">{connectionStats.pending_sent}</div>
-                <div className="text-xs text-gray-600 flex items-center justify-center gap-1">
-                  <Send size={12} />
-                  Requests Sent
+                  Pending Requests
                 </div>
               </div>
             </div>
@@ -772,7 +756,7 @@ const Members = () => {
                   Clear Search
                 </button>
               )}
-              {activeTab === 'requests' && (
+              {activeTab === 'pending' && (
                 <button
                   onClick={() => setActiveTab('all')}
                   className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all active:scale-95 shadow-md mt-2"
@@ -987,11 +971,11 @@ const Members = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gradient-to-r from-blue-600/10 to-blue-500/10 rounded-xl p-3">
                     <div className="text-lg font-bold text-gray-900">{connectionStats.pending_received}</div>
-                    <div className="text-xs text-gray-600">Received</div>
+                    <div className="text-xs text-gray-600">Pending Received</div>
                   </div>
                   <div className="bg-gradient-to-r from-orange-600/10 to-orange-500/10 rounded-xl p-3">
                     <div className="text-lg font-bold text-gray-900">{connectionStats.pending_sent}</div>
-                    <div className="text-xs text-gray-600">Sent</div>
+                    <div className="text-xs text-gray-600">Pending Sent</div>
                   </div>
                 </div>
               </div>
@@ -1156,11 +1140,11 @@ const Members = () => {
                 <button
                   onClick={() => {
                     setShowRequestsModal(false);
-                    setActiveTab('requests');
+                    setActiveTab('pending');
                   }}
                   className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md"
                 >
-                  View All in Requests Tab
+                  View All in Pending Tab
                 </button>
               </div>
             </div>

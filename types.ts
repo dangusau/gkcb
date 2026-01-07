@@ -1,157 +1,141 @@
-// Mapped to Laravel 'users' table
+// User types
 export interface User {
-    id: number;
-    name: string;
-    email: string;
-    avatar_url: string;
-    role: string;
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+  phone: string | null;
+  location: string | null;
+  website: string | null;
+  is_pioneer: boolean;
+  is_admin: boolean;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  updated_at: string;
 }
 
-// Mapped to Laravel 'members' table
-export interface Member {
-    id: number;
-    user_id: number;
-    full_name: string;
-    position: string;
-    company: string;
-    category_id: number;
-    bio: string;
-    verified: boolean;
-    image_url: string;
-    is_friend?: boolean;
-}
-
-// Mapped to Laravel 'businesses' table
 export interface Business {
-    id: number;
-    name: string;
-    description: string;
-    address: string;
-    logo_url: string;
-    cover_image_url: string;
-    category_id: number;
-    category: string;
-    rating: number;
-    is_verified: boolean;
-    is_owned?: boolean;
-    // New fields
-    email?: string;
-    phone?: string;
-    website?: string;
-    operating_hours?: string; // e.g., "Mon-Fri: 9am - 5pm"
-    products_services?: string[];
-    owner_name?: string;
-    owner_avatar?: string;
-}
-
-// Mapped to Laravel 'blog_posts' table
-export interface BlogPost {
-    id: number;
-    title: string;
-    excerpt: string;
-    image_url: string;
-    author_name: string;
-    created_at: string;
-    likes_count: number;
-    comments_count: number;
-    is_liked?: boolean;
-}
-
-// Mapped to Laravel 'events' table
-export interface Event {
-    id: number;
-    title: string;
-    description: string;
-    start_time: string;
-    location: string;
-    image_url: string;
-    attendees_count: number;
-}
-
-// Mapped to Laravel 'conversations'
-export interface Conversation {
-    id: number;
-    with_user: User;
-    last_message: string;
-    last_message_at: string;
-    unread_count: number;
-}
-
-// Mapped to 'classifieds'
-export interface Classified {
-    id: number;
-    title: string;
-    price: string;
-    image_url: string;
-    category: string;
-    description?: string;
-    location?: string;
-    seller_name?: string;
-    seller_avatar?: string;
-    posted_at?: string;
-    condition?: string;
-}
-
-// Employment Board
-export interface Job {
-    id: number;
-    title: string;
-    company: string;
-    type: 'Full-time' | 'Part-time' | 'Contract' | 'Remote';
-    location: string;
-    salary_range: string;
-    posted_at: string;
-    description: string;
-    logo_url: string;
-    is_owner: boolean;
-}
-
-// Notifications
-export interface Notification {
-    id: number;
-    type: 'like' | 'comment' | 'message' | 'system';
-    actor_name: string;
-    actor_avatar: string;
-    content: string;
-    time: string;
-    is_read: boolean;
-    reference_id?: number; // User ID for messages/social, Business ID for system etc.
-}
-
-// Media
-export interface MediaItem {
-    id: number;
-    title: string;
-    description: string;
-    thumbnail_url: string;
-    type: 'video' | 'gallery';
-    duration?: string; // For video
-    photo_count?: number; // For gallery
-    created_at: string;
-    views: number;
-    author_name: string;
-    category: string;
-}
-
-// Chat Message
-export interface Message {
-    id: number;
-    text?: string;
-    sender: 'me' | 'them';
-    time: string;
-    type: 'text' | 'image' | 'audio';
-    media_url?: string;
-    duration?: string; // for audio
-}
-
-// Add these types to your existing types file
-type Pioneer = {
   id: string;
   name: string;
-  position: string;
-  image_url: string;
-  bio?: string;
-  order_index: number;
-  is_active: boolean;
+  description: string | null;
+  category: string | null;
+  logo_url: string | null;
+  cover_url: string | null;
+  website: string | null;
+  phone: string | null;
+  email: string | null;
+  location: string | null;
+  owner_id: string;
+  is_verified: boolean;
   created_at: string;
-};
+  updated_at: string;
+}
+
+export interface Post {
+  id: string;
+  content: string;
+  author_id: string;
+  media_urls: string[] | null;
+  likes_count: number;
+  comments_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  content: string;
+  read: boolean;
+  created_at: string;
+}
+
+// types.ts - Add these interfaces
+export interface Activity {
+  id: string;
+  type: 'event' | 'job' | 'classified';
+  title: string;
+  description?: string;
+  category?: string;
+  price?: string;
+  location?: string;
+  status: 'active' | 'inactive' | 'completed' | 'pending' | 'sold';
+  user_id?: string;
+  user_name?: string;
+  user_email?: string;
+  created_at: string;
+  updated_at?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ActivityStats {
+  total: number;
+  active: number;
+  byType: {
+    events: number;
+    jobs: number;
+    classifieds: number;
+  };
+  byCategory: Record<string, number>;
+  byStatus: Record<string, number>;
+  dailyCounts: Array<{ date: string; count: number }>;
+  recentActivities: number;
+  todayActivities: number;
+}
+
+export interface CategoryInsight {
+  name: string;
+  count: number;
+  trend: 'up' | 'down' | 'stable';
+  change: number;
+  recent: number;
+}
+
+export interface ActivityFilters {
+  search?: string;
+  type?: 'event' | 'job' | 'classified';
+  status?: string;
+  category?: string;
+  dateRange?: '24h' | '7d' | '30d' | '90d';
+  startDate?: Date;
+  endDate?: Date;
+}
+
+// src/types/types.ts
+
+export interface Profile {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  approved?: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  participant_1: string;
+  participant_2: string;
+  last_message_at?: string;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+  type?: 'text' | 'image' | 'audio' | 'doc';
+  media_url?: string;
+  duration?: string;
+}
+
+export interface ChatUser {
+  id: string;
+  name: string;
+  avatar_url?: string;
+  online?: boolean;
+}
