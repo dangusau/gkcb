@@ -104,33 +104,27 @@ export interface ActivityFilters {
   endDate?: Date;
 }
 
-// src/types/types.ts
-
-export interface Profile {
-  id: string;
-  first_name?: string;
-  last_name?: string;
-  avatar_url?: string;
-  approved?: boolean;
-}
-
 export interface Conversation {
   id: string;
-  participant_1: string;
-  participant_2: string;
-  last_message_at?: string;
+  with_user: {
+    id: string;
+    name: string;
+    avatar_url?: string;
+    status: 'online' | 'away' | 'offline';
+  };
+  last_message: string;
+  last_message_at: string;
+  unread_count: number;
 }
 
-export interface Message {
+export interface Member {
   id: string;
-  conversation_id: string;
-  sender_id: string;
-  content: string;
-  is_read: boolean;
-  created_at: string;
-  type?: 'text' | 'image' | 'audio' | 'doc';
-  media_url?: string;
-  duration?: string;
+  user_id: string;
+  full_name: string;
+  image_url?: string;
+  position?: string;
+  company?: string;
+  is_friend: boolean;
 }
 
 export interface ChatUser {

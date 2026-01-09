@@ -15,6 +15,8 @@ import {
 import BottomNav from './components/BottomNav';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+import Notifications from './components/Notifications';
+import { useHeartbeat } from './hooks/useHeartbeat'; // Added heartbeat hook
 
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
@@ -41,9 +43,8 @@ import MarketDetails from './pages/MarketDetails';
 import Media from './pages/Media';
 import MediaDetails from './pages/MediaDetails';
 import Messages from './pages/Messages';
-import ChatSession from './pages/ChatSession';
 import Profile from './pages/Profile';
-import Notifications from './pages/Notifications';
+import MessagesChat from './pages/MessagesChat';
 
 // Admin Pages
 import AdminLogin from './pages/admin/AdminLogin';
@@ -71,8 +72,9 @@ const AppContent = () => {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/pending-approval" element={<PendingApproval />} />
         <Route path="/debug" element={<Debug />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
 
-        {/* ================= MAIN APP ================= */}
+        {/* ================= MAIN APP (PROTECTED) ================= */}
         <Route
           path="/home"
           element={
@@ -82,36 +84,160 @@ const AppContent = () => {
           }
         />
 
-        <Route path="/members" element={<Members />} />
-        <Route path="/members-page" element={<MembersPage />} />
-        <Route path="/member/:id" element={<MemberProfile />} />
+        <Route
+          path="/members"
+          element={
+            <ProtectedRoute>
+              <Members />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/members-page"
+          element={
+            <ProtectedRoute>
+              <MembersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/member/:id"
+          element={
+            <ProtectedRoute>
+              <MemberProfile />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/businesses" element={<Businesses />} />
-        <Route path="/business/:id" element={<BusinessProfile />} />
+        <Route
+          path="/businesses"
+          element={
+            <ProtectedRoute>
+              <Businesses />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/business/:id"
+          element={
+            <ProtectedRoute>
+              <BusinessProfile />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/explore" element={<Explore />} />
-        <Route path="/pioneers" element={<PioneersPage />} />
+        <Route
+          path="/explore"
+          element={
+            <ProtectedRoute>
+              <Explore />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pioneers"
+          element={
+            <ProtectedRoute>
+              <PioneersPage />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/events" element={<Events />} />
-        <Route path="/event/:id" element={<EventDetails />} />
+        <Route
+          path="/events"
+          element={
+            <ProtectedRoute>
+              <Events />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/event/:id"
+          element={
+            <ProtectedRoute>
+              <EventDetails />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/market" element={<Market />} />
-        <Route path="/market/:id" element={<MarketDetails />} />
+        <Route
+          path="/market"
+          element={
+            <ProtectedRoute>
+              <Market />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/market/:id"
+          element={
+            <ProtectedRoute>
+              <MarketDetails />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/media" element={<Media />} />
-        <Route path="/media/:id" element={<MediaDetails />} />
+        <Route
+          path="/media"
+          element={
+            <ProtectedRoute>
+              <Media />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/media/:id"
+          element={
+            <ProtectedRoute>
+              <MediaDetails />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/messages" element={<Messages />} />
-        <Route path="/messages/chat/:Id" element={<ChatSession />} />
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <Messages />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/messages/chat/:conversationId"
+          element={
+            <ProtectedRoute>
+              <MessagesChat />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/profile/:id" element={<Profile />} />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile/:id"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/notifications" element={<Notifications />} />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <Notifications />
+            </ProtectedRoute>
+          }
+        />
 
         {/* ================= ADMIN ================= */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-
         {/* Admin routes with AdminLayout wrapper */}
         <Route
           path="/admin/*"
@@ -134,6 +260,12 @@ const AppContent = () => {
           <Route path="security" element={<PlaceholderPage />} />
           <Route path="settings" element={<PlaceholderPage />} />
           <Route path="support" element={<PlaceholderPage />} />
+          <Route path="events" element={<PlaceholderPage />} />
+          <Route path="market" element={<PlaceholderPage />} />
+          <Route path="media" element={<PlaceholderPage />} />
+          
+          {/* Catch-all for admin sub-routes */}
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
 
         {/* ================= FALLBACK ================= */}
@@ -146,6 +278,9 @@ const AppContent = () => {
 };
 
 function App() {
+  // Initialize heartbeat system for online status tracking
+  useHeartbeat();
+  
   return (
     <Router>
       <AppContent />
