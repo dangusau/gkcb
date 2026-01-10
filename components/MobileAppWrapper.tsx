@@ -7,23 +7,22 @@ interface MobileAppWrapperProps {
 const MobileAppWrapper: React.FC<MobileAppWrapperProps> = ({ children }) => {
   return (
     <div className="mobile-wrapper">
-      {/* iOS Safe Area Top */}
+      {/* iOS Safe Area Top - Only for wrapper content */}
       <div className="h-[env(safe-area-inset-top)] bg-transparent" />
       
-      {/* Main App Container */}
-      <div className="min-h-screen bg-gray-50">
-        {/* Mobile width constraint - max 640px (iPhone width) */}
-        <div className="max-w-screen-sm mx-auto w-full min-h-screen bg-white">
+      {/* Page Content Wrapper - Constrained to 640px */}
+      <div className="min-h-screen bg-white">
+        <div className="max-w-screen-sm mx-auto w-full min-h-screen">
           {children}
         </div>
       </div>
       
-      {/* iOS Safe Area Bottom */}
+      {/* iOS Safe Area Bottom - Only for wrapper content */}
       <div className="h-[env(safe-area-inset-bottom)] bg-transparent" />
       
-      {/* Mobile optimization styles */}
+      {/* Tablet/Desktop centering */}
       <style jsx global>{`
-        /* For tablets/desktops: center the mobile app */
+        /* For tablets/desktops: center ONLY the content area */
         @media (min-width: 641px) {
           body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -42,24 +41,14 @@ const MobileAppWrapper: React.FC<MobileAppWrapperProps> = ({ children }) => {
             overflow: hidden;
             max-height: 90vh;
           }
-        }
-        
-        /* Mobile-specific optimizations */
-        @media (max-width: 640px) {
-          /* Prevent text selection except on inputs */
-          body {
-            user-select: none;
+          
+          /* Header and BottomNav should be full width inside wrapper on desktop */
+          header, nav {
+            border-radius: 20px 20px 0 0;
           }
           
-          input, textarea {
-            user-select: text;
-            font-size: 16px; /* Prevents iOS zoom */
-          }
-          
-          /* Minimum touch target size */
-          button, a, [role="button"] {
-            min-height: 44px;
-            min-width: 44px;
+          nav {
+            border-radius: 0 0 20px 20px;
           }
         }
       `}</style>

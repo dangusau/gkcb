@@ -1,14 +1,14 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Users, Briefcase, Compass, User } from 'lucide-react';
+import { Home, Users, Briefcase, Compass, ShoppingCart } from 'lucide-react';
 
 const BottomNav = () => {
   const navItems = [
     { path: '/home', icon: Home, label: 'Home' },
     { path: '/members', icon: Users, label: 'Members' },
-    { path: '/businesses', icon: Briefcase, label: 'Biz' },
+    { path: '/marketplace', icon: ShoppingCart, label: 'Market' }, // Changed from Briefcase
+    { path: '/businesses', icon: Briefcase, label: 'Biz' }, // Kept Biz
     { path: '/explore', icon: Compass, label: 'Explore' },
-    { path: '/profile', icon: User, label: 'Profile' }, // Changed from Chat to Profile
   ];
 
   return (

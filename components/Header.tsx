@@ -1,29 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { MessageCircle, LogOut, Home, Users, Calendar, Settings, Bell, X } from 'lucide-react';
+import { MessageCircle, LogOut, Settings, Bell, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 
 interface HeaderProps {
   userName?: string;
   userAvatar?: string;
+  showBack?: boolean;
+  onBack?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ userName = "Member", userAvatar }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  userName = "Member", 
+  userAvatar,
+  showBack = false,
+  onBack
+}) => {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [userInitials, setUserInitials] = useState('M');
   const [loading, setLoading] = useState(true);
 
-  // Get current user ONCE when component mounts
   useEffect(() => {
     const getCurrentUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setCurrentUser(user);
-
-          // Get user initials
           const metadataName = user.user_metadata?.name || user.user_metadata?.full_name;
           const emailName = user.email?.split('@')[0] || '';
           const name = metadataName || emailName || userName;
@@ -46,7 +50,7 @@ const Header: React.FC<HeaderProps> = ({ userName = "Member", userAvatar }) => {
     };
 
     getCurrentUser();
-  }, []); // Empty dependency array = run once on mount
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -58,13 +62,6 @@ const Header: React.FC<HeaderProps> = ({ userName = "Member", userAvatar }) => {
     }
   };
 
-  const navigationItems = [
-    { icon: Home, label: 'Home', path: '/' },
-    { icon: MessageCircle, label: 'Messages', path: '/messages' },
-    { icon: Users, label: 'Members', path: '/members' },
-    { icon: Calendar, label: 'Events', path: '/events' },
-  ];
-
   const profileMenuItems = [
     { label: 'My Profile', path: '/profile' },
     { label: 'Settings', path: '/settings', icon: Settings },
@@ -74,39 +71,51 @@ const Header: React.FC<HeaderProps> = ({ userName = "Member", userAvatar }) => {
 
   return (
     <>
-      {/* Main Header */}
-      <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-700 shadow-xl">
+      {/* Main Header - FULL WIDTH */}
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-700 shadow-xl w-full pt-safe">
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
             {/* Left: Logo */}
-            <div
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30">
-                <img 
-                  src="/logo.png" 
-                  alt="GKBC Logo" 
-                  className="w-8 h-8 object-contain"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent) {
-                      parent.innerHTML = '<div class="text-white font-black text-lg tracking-wider">GKBC</div>';
-                    }
-                  }}
-                />
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-black text-white tracking-tight drop-shadow-md">Greater Kano</h1>
-                <p className="text-white/90 text-xs font-medium">Business Council</p>
-              </div>
+            <div className="flex items-center gap-2">
+              {showBack ? (
+                <button
+                  onClick={onBack || (() => navigate(-1))}
+                  className="p-2 -ml-2 text-white hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              ) : (
+                <div
+                  onClick={() => navigate('/home')}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/30">
+                    <img 
+                      src="/logo.png" 
+                      alt="GKBC Logo" 
+                      className="w-8 h-8 object-contain"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<div class="text-white font-black text-lg tracking-wider">GKBC</div>';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="hidden sm:block">
+                    <h1 className="text-xl font-black text-white tracking-tight drop-shadow-md">Greater Kano</h1>
+                    <p className="text-white/90 text-xs font-medium">Business Council</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right: User Actions */}
             <div className="flex items-center gap-3">
-              {/* Notifications Icon - Just navigates to notifications page */}
               <button
                 onClick={() => navigate('/notifications')}
                 className="p-2.5 bg-white/10 rounded-xl text-white hover:bg-white/20 transition-all group"
@@ -115,7 +124,6 @@ const Header: React.FC<HeaderProps> = ({ userName = "Member", userAvatar }) => {
                 <Bell size={20} className="group-hover:scale-110 transition-transform" />
               </button>
 
-              {/* Messages Button - Just navigates to messages page */}
               <button
                 onClick={() => navigate('/messages')}
                 className="p-2.5 bg-white/10 rounded-xl text-white hover:bg-white/20 transition-all group"
@@ -209,23 +217,6 @@ const Header: React.FC<HeaderProps> = ({ userName = "Member", userAvatar }) => {
         </div>
       </header>
 
-      {/* Bottom Navigation for Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-40 safe-area-bottom shadow-lg">
-        <div className="grid grid-cols-4">
-          {navigationItems.map((item) => (
-            <button
-              key={item.label}
-              onClick={() => navigate(item.path)}
-              className="flex flex-col items-center justify-center py-3 text-gray-600 hover:text-blue-600 transition-colors active:bg-blue-50"
-            >
-              <item.icon size={22} />
-              <span className="text-xs mt-1 font-medium">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Add animations */}
       <style jsx>{`
         @keyframes fadeIn {
           from {
