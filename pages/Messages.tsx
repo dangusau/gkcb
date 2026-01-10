@@ -9,12 +9,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
-  MessageSquare,
-  Wifi,
-  WifiOff
+  MessageSquare
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { useHeartbeat } from '../hooks/useHeartbeat';
+import Header from '../components/Header';
 
 // Custom debounce function
 const debounce = <T extends (...args: any[]) => any>(func: T, wait: number) => {
@@ -72,8 +71,9 @@ const Messages = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread'>('all');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [feedback, setFeedback] = useState<{type: 'success' | 'error' | 'info', message: string} | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [connectionError, setConnectionError] = useState<string | null>(null);
+  
+  // Refs for cleanup
+  const cleanupRef = useRef<(() => void)[]>([]);
   
   // Initialize heartbeat
   useHeartbeat();
@@ -99,100 +99,114 @@ const Messages = () => {
     }, 300)
   );
 
-  // Test Supabase connection
-  const testConnection = async () => {
-    try {
-      console.log('Testing Supabase connection...');
-      // Try a simple query to test connection
-      const { error } = await supabase.from('profiles').select('id').limit(1);
-      
-      if (error) {
-        console.error('Supabase connection error:', error);
-        return false;
-      }
-      
-      console.log('Supabase connection successful');
-      return true;
-    } catch (error) {
-      console.error('Connection test failed:', error);
-      return false;
+  // Function to mark ALL messages in a conversation as read
+  const markConversationAsRead = useCallback(async (conversationId: string) => {
+    if (!currentUser?.id) {
+      console.error('No current user found');
+      return;
     }
-  };
+
+    console.log(`Marking conversation ${conversationId} as read for user ${currentUser.id}`);
+    
+    try {
+      // First, let's check what messages need to be marked as read
+      const { data: unreadMessages, error: fetchError } = await supabase
+        .from('messages')
+        .select('id, is_read, sender_id')
+        .eq('conversation_id', conversationId)
+        .eq('is_read', false)
+        .neq('sender_id', currentUser.id);
+
+      if (fetchError) {
+        console.error('Error fetching unread messages:', fetchError);
+        return;
+      }
+
+      console.log(`Found ${unreadMessages?.length || 0} unread messages to mark as read`);
+
+      if (!unreadMessages || unreadMessages.length === 0) {
+        // Update local state even if no unread messages in DB
+        setConversations(prev => prev.map(conv => {
+          if (conv.id === conversationId) {
+            return { ...conv, unread_count: 0 };
+          }
+          return conv;
+        }));
+        return;
+      }
+
+      // Update messages in database
+      const messageIds = unreadMessages.map(msg => msg.id);
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .in('id', messageIds);
+
+      if (updateError) {
+        console.error('Error updating messages as read:', updateError);
+        showFeedback('error', 'Failed to mark messages as read');
+        return;
+      }
+
+      console.log(`Successfully marked ${messageIds.length} messages as read`);
+
+      // Update local state
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === conversationId) {
+          return { ...conv, unread_count: 0 };
+        }
+        return conv;
+      }));
+
+      // Also call the database function to recalculate unread counts
+      try {
+        await supabase.rpc('update_conversation_unread_count', {
+          conversation_id: conversationId,
+          user_id: currentUser.id
+        });
+      } catch (rpcError) {
+        console.log('RPC function not available, continuing...', rpcError);
+      }
+
+    } catch (error) {
+      console.error('Error in markConversationAsRead:', error);
+      // Still update local state even if DB update fails
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === conversationId) {
+          return { ...conv, unread_count: 0 };
+        }
+        return conv;
+      }));
+    }
+  }, [currentUser?.id]);
 
   // Initialize
   useEffect(() => {
     const initialize = async () => {
       try {
-        setLoading(true);
-        setConnectionError(null);
-        
-        console.log('Initializing Messages component...');
-        
-        // Test connection first
-        const isConnected = await testConnection();
-        if (!isConnected) {
-          setConnectionError('Unable to connect to server. Please check your internet connection.');
-          showFeedback('error', 'Connection error. Please refresh the page.');
-          setLoading(false);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate('/login');
           return;
         }
-        
-        // Get session with error handling
-        try {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          
-          if (sessionError) {
-            console.error('Session error:', sessionError);
-            setConnectionError('Authentication error. Please login again.');
-            navigate('/login');
-            return;
-          }
-          
-          if (!session) {
-            console.log('No active session found');
-            navigate('/login');
-            return;
-          }
-          
-          console.log('Session found, getting user...');
-          
-          // Get user
-          const { data: { user }, error: userError } = await supabase.auth.getUser();
-          
-          if (userError) {
-            console.error('User error:', userError);
-            setConnectionError('Unable to load user data.');
-            navigate('/login');
-            return;
-          }
-          
-          if (!user) {
-            console.log('No user found');
-            navigate('/login');
-            return;
-          }
-          
-          console.log('User loaded:', user.id);
-          setCurrentUser(user);
-          
-          // Fetch data
-          await fetchAllData(user.id);
-          
-          // Set up real-time subscriptions
-          setupRealtimeSubscriptions(user.id);
-          
-        } catch (authError) {
-          console.error('Auth process error:', authError);
-          setConnectionError('Authentication failed. Please login again.');
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
           navigate('/login');
+          return;
         }
+
+        console.log('Initializing Messages for user:', user.id);
+        setCurrentUser(user);
+        await fetchAllData(user.id);
+        
+        // Set up real-time subscriptions
+        const cleanup = setupRealtimeSubscriptions(user.id);
+        cleanupRef.current.push(cleanup);
         
       } catch (error) {
-        console.error('Initialization error:', error);
-        setConnectionError('Failed to initialize. Please try again.');
-        showFeedback('error', 'Failed to load messages');
-      } finally {
-        setLoading(false);
+        console.error('Error initializing:', error);
+        showFeedback('error', 'Failed to initialize messages');
       }
     };
 
@@ -200,134 +214,114 @@ const Messages = () => {
 
     // Cleanup
     return () => {
-      console.log('Cleaning up Messages component');
-      try {
-        const channel = supabase.channel('messages-updates');
-        channel.unsubscribe();
-      } catch (error) {
-        console.error('Cleanup error:', error);
-      }
+      cleanupRef.current.forEach(cleanup => cleanup());
+      cleanupRef.current = [];
     };
   }, [navigate]);
 
   // Set up real-time subscriptions
   const setupRealtimeSubscriptions = (userId: string) => {
-    try {
-      console.log('Setting up real-time subscriptions...');
-      
-      // Subscribe to new messages
-      const messagesChannel = supabase.channel('messages-channel')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-          },
-          () => {
-            console.log('New message detected, refreshing conversations...');
-            fetchConversations(userId);
-            setLastUpdated(new Date());
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'messages',
-          },
-          () => {
-            console.log('Message updated, refreshing...');
-            fetchConversations(userId);
-            setLastUpdated(new Date());
-          }
-        )
-        .subscribe((status) => {
-          console.log('Messages channel status:', status);
-        });
+    console.log('Setting up real-time subscriptions for user:', userId);
 
-      // Subscribe to conversation updates
-      const conversationsChannel = supabase.channel('conversations-channel')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'conversations',
-          },
-          () => {
-            console.log('New conversation created, refreshing...');
-            fetchConversations(userId);
-            setLastUpdated(new Date());
-          }
-        )
-        .subscribe((status) => {
-          console.log('Conversations channel status:', status);
-        });
+    // Subscribe to conversation updates
+    const conversationsChannel = supabase.channel('messages-conversations')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+          filter: `participants=cs.{"${userId}"}`
+        },
+        (payload) => {
+          console.log('Conversation change detected:', payload);
+          fetchConversations(userId);
+        }
+      )
+      .subscribe();
 
-      // Subscribe to profile updates for online status
-      const profilesChannel = supabase.channel('profiles-channel')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: 'last_seen=neq.' + new Date().toISOString()
-          },
-          (payload) => {
-            console.log('Profile updated (online status), refreshing...', payload);
-            // Refresh both conversations and friends
+    // Subscribe to message updates
+    const messagesChannel = supabase.channel('messages-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages'
+        },
+        async (payload) => {
+          console.log('New message detected:', payload);
+          // Wait a bit to ensure the unread count is updated
+          setTimeout(() => {
             fetchConversations(userId);
-            fetchFriends(userId);
-            setLastUpdated(new Date());
-          }
-        )
-        .subscribe((status) => {
-          console.log('Profiles channel status:', status);
-        });
+          }, 500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `is_read=eq.true`
+        },
+        () => {
+          console.log('Message read status updated');
+          setTimeout(() => {
+            fetchConversations(userId);
+          }, 500);
+        }
+      )
+      .subscribe();
 
-      console.log('Real-time subscriptions set up');
-      
-      return () => {
-        messagesChannel.unsubscribe();
-        conversationsChannel.unsubscribe();
-        profilesChannel.unsubscribe();
-      };
-    } catch (error) {
-      console.error('Error setting up real-time subscriptions:', error);
-      showFeedback('error', 'Live updates unavailable');
-    }
+    // Subscribe to user online status
+    const statusChannel = supabase.channel('messages-status')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        () => {
+          console.log('Profile status updated');
+          fetchFriends(userId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      conversationsChannel.unsubscribe();
+      messagesChannel.unsubscribe();
+      statusChannel.unsubscribe();
+    };
   };
 
   // Fetch all data
   const fetchAllData = async (userId: string) => {
     try {
       setLoading(true);
-      setConnectionError(null);
       
-      console.log('Fetching all data for user:', userId);
-      
-      // Send initial heartbeat (non-critical)
+      // Send heartbeat
       try {
         await supabase.rpc('heartbeat', { user_id: userId });
-        console.log('Heartbeat sent');
-      } catch (heartbeatError) {
-        console.log('Heartbeat not critical:', heartbeatError);
+      } catch (error) {
+        console.log('Heartbeat not critical:', error);
       }
       
       // Fetch conversations and friends in parallel
-      const [conversationsResult, friendsResult] = await Promise.all([
+      const [conversationsResult, friendsResult] = await Promise.allSettled([
         fetchConversations(userId),
         fetchFriends(userId)
       ]);
 
-      console.log(`Loaded ${conversationsResult.length} conversations and ${friendsResult.length} friends`);
+      console.log('Fetch results:', {
+        conversations: conversationsResult.status === 'fulfilled' ? conversationsResult.value.length : 'failed',
+        friends: friendsResult.status === 'fulfilled' ? friendsResult.value.length : 'failed'
+      });
       
     } catch (error) {
       console.error('Error in fetchAllData:', error);
-      setConnectionError('Failed to load messages. Please check your connection.');
       showFeedback('error', 'Failed to load messages');
     } finally {
       setLoading(false);
@@ -337,20 +331,20 @@ const Messages = () => {
   // Fetch conversations using database function
   const fetchConversations = async (userId: string): Promise<Conversation[]> => {
     try {
-      console.log('Fetching conversations...');
+      console.log('Fetching conversations for user:', userId);
       
       const { data, error } = await supabase
         .rpc('get_user_conversations', { user_id: userId });
 
       if (error) {
-        console.error('RPC Error fetching conversations:', error);
+        console.error('Error fetching conversations:', error);
         showFeedback('error', 'Failed to load conversations');
         setConversations([]);
         setFilteredConversations([]);
         return [];
       }
 
-      console.log('Conversations data received:', data);
+      console.log('Raw conversations data:', data);
 
       if (!data || data.length === 0) {
         console.log('No conversations found');
@@ -360,33 +354,59 @@ const Messages = () => {
       }
 
       // Format the data for UI
-      // with_user is already a JSON object from the database function
       const formattedConversations: Conversation[] = data.map((conv: any) => {
-        // with_user is already an object from jsonb_build_object
-        const withUser = conv.with_user || {};
-        
-        return {
-          id: conv.id || conv.conversation_id || 'unknown',
+        let withUser = conv.with_user;
+        if (typeof conv.with_user === 'string') {
+          try {
+            withUser = JSON.parse(conv.with_user);
+          } catch (e) {
+            console.warn('Failed to parse with_user JSON:', conv.with_user);
+            withUser = {
+              id: conv.id,
+              name: 'User',
+              status: 'offline'
+            };
+          }
+        }
+
+        const conversation: Conversation = {
+          id: conv.id,
           with_user: {
-            id: withUser.id || 'unknown',
+            id: withUser.id || conv.id,
             name: withUser.name || 'User',
             avatar_url: withUser.avatar_url,
-            status: (withUser.status === 'online' ? 'online' : 'offline') as 'online' | 'offline'
+            status: withUser.status || 'offline'
           },
           last_message: conv.last_message || 'No messages yet',
           last_message_at: formatTimeAgo(conv.last_message_at),
           unread_count: conv.unread_count || 0,
           raw_timestamp: conv.last_message_at
         };
+
+        console.log(`Formatted conversation ${conversation.id}:`, {
+          name: conversation.with_user.name,
+          unread_count: conversation.unread_count,
+          last_message: conversation.last_message
+        });
+
+        return conversation;
       });
 
-      console.log('Formatted conversations:', formattedConversations);
-      setConversations(formattedConversations);
-      debouncedFilterRef.current(searchTerm, activeFilter, formattedConversations);
+      // Sort by last_message_at (newest first)
+      const sortedConversations = formattedConversations.sort((a, b) => {
+        if (!a.raw_timestamp || !b.raw_timestamp) return 0;
+        return new Date(b.raw_timestamp).getTime() - new Date(a.raw_timestamp).getTime();
+      });
+
+      console.log(`Loaded ${sortedConversations.length} conversations, total unread:`, 
+        sortedConversations.reduce((sum, conv) => sum + conv.unread_count, 0));
+
+      setConversations(sortedConversations);
+      debouncedFilterRef.current(searchTerm, activeFilter, sortedConversations);
       
-      return formattedConversations;
+      return sortedConversations;
     } catch (error) {
-      console.error('Exception in fetchConversations:', error);
+      console.error('Error in fetchConversations:', error);
       showFeedback('error', 'Failed to load conversations');
       setConversations([]);
       setFilteredConversations([]);
@@ -397,23 +417,18 @@ const Messages = () => {
   // Fetch friends using database function
   const fetchFriends = async (userId: string): Promise<Member[]> => {
     try {
-      console.log('Fetching friends...');
-      
       const { data, error } = await supabase
         .rpc('get_available_members', { current_user_id: userId });
 
       if (error) {
-        console.error('RPC Error fetching friends:', error);
-        showFeedback('error', 'Failed to load contacts');
+        console.error('Error fetching friends:', error);
         setFriends([]);
         return [];
       }
 
-      console.log('Friends data received:', data);
-
       const formattedFriends: Member[] = (data || []).map((friend: any) => ({
-        id: friend.id || friend.user_id || 'unknown',
-        user_id: friend.user_id || friend.id || 'unknown',
+        id: friend.id || friend.user_id,
+        user_id: friend.user_id || friend.id,
         first_name: friend.first_name || '',
         last_name: friend.last_name || '',
         full_name: friend.full_name || 
@@ -423,12 +438,17 @@ const Messages = () => {
         is_online: friend.is_online || false
       }));
 
-      console.log('Formatted friends:', formattedFriends);
-      setFriends(formattedFriends);
-      return formattedFriends;
+      // Sort by online status first, then by name
+      const sortedFriends = formattedFriends.sort((a, b) => {
+        if (a.is_online && !b.is_online) return -1;
+        if (!a.is_online && b.is_online) return 1;
+        return a.full_name.localeCompare(b.full_name);
+      });
+
+      setFriends(sortedFriends);
+      return sortedFriends;
     } catch (error) {
-      console.error('Exception in fetchFriends:', error);
-      showFeedback('error', 'Failed to load contacts');
+      console.error('Error in fetchFriends:', error);
       setFriends([]);
       return [];
     }
@@ -462,25 +482,18 @@ const Messages = () => {
     }
   };
 
-  // Open chat - UPDATED VERSION
+  // Open chat
   const openChat = async (userId: string, friendName: string) => {
     if (!currentUser) {
       showFeedback('error', 'Please login to start a chat');
-      navigate('/login');
       return;
     }
 
     setOpeningChat(userId);
 
     try {
-      console.log('Opening chat with user:', userId, 'Current user:', currentUser.id);
-      
-      // Send heartbeat before opening chat (non-critical)
-      try {
-        await supabase.rpc('heartbeat', { user_id: currentUser.id });
-      } catch (heartbeatError) {
-        console.log('Heartbeat not critical:', heartbeatError);
-      }
+      // Send heartbeat before opening chat
+      await supabase.rpc('heartbeat', { user_id: currentUser.id });
       
       // Get or create conversation
       const { data, error } = await supabase
@@ -496,14 +509,12 @@ const Messages = () => {
       }
 
       if (!data || data.length === 0) {
-        showFeedback('error', 'Failed to start chat: No conversation data returned');
+        showFeedback('error', 'Failed to start chat');
         return;
       }
 
       const conversationId = data[0].conversation_id;
       const createdNew = data[0].created_new;
-
-      console.log('Conversation result:', { conversationId, createdNew });
 
       if (createdNew) {
         try {
@@ -513,32 +524,41 @@ const Messages = () => {
               {
                 conversation_id: conversationId,
                 sender_id: currentUser.id,
-                content: `Started a conversation with ${friendName}`,
+                content: `Started a conversation`,
                 is_read: true,
                 created_at: new Date().toISOString()
               }
             ]);
-          console.log('Initial message created');
         } catch (error) {
           console.log('Note: Could not create initial message:', error);
         }
       }
 
+      // Mark conversation as read before navigating
+      await markConversationAsRead(conversationId);
+      
       // Close modal and navigate
       setIsNewChatOpen(false);
       setFriendSearch("");
-      
-      // Add a small delay to ensure state updates and modal closes
-      setTimeout(() => {
-        navigate(`/messages/chat/${conversationId}`);
-      }, 100);
+      navigate(`/messages/chat/${conversationId}`);
 
     } catch (error: any) {
       console.error('Error opening chat:', error);
-      showFeedback('error', error.message || 'Failed to open chat. Please try again.');
+      showFeedback('error', error.message || 'Failed to open chat');
     } finally {
       setOpeningChat(null);
     }
+  };
+
+  // Handle opening existing chat
+  const handleOpenExistingChat = async (conversationId: string) => {
+    console.log('Opening existing chat:', conversationId);
+    
+    // Mark conversation as read before navigating
+    await markConversationAsRead(conversationId);
+    
+    // Navigate to chat
+    navigate(`/messages/chat/${conversationId}`);
   };
 
   // Filter friends based on search
@@ -567,58 +587,6 @@ const Messages = () => {
     setSearchTerm('');
   };
 
-  // Manual refresh
-  const handleRefresh = async () => {
-    if (currentUser) {
-      setLoading(true);
-      await fetchAllData(currentUser.id);
-      showFeedback('success', 'Messages refreshed');
-    }
-  };
-
-  // Retry connection
-  const handleRetry = () => {
-    setConnectionError(null);
-    setLoading(true);
-    if (currentUser) {
-      fetchAllData(currentUser.id);
-    } else {
-      window.location.reload();
-    }
-  };
-
-  // Connection error state
-  if (connectionError) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50 flex flex-col items-center justify-center safe-area px-4">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <WifiOff className="w-10 h-10 text-red-600" />
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-3">Connection Error</h3>
-          <p className="text-gray-600 text-sm mb-2">{connectionError}</p>
-          <p className="text-gray-500 text-xs mb-6">
-            This might be due to network issues or server problems.
-          </p>
-          <div className="flex gap-3 justify-center">
-            <button
-              onClick={handleRetry}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-6 py-3 rounded-xl transition-all active:scale-95 shadow-md"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={() => navigate('/')}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-6 py-3 rounded-xl transition-all active:scale-95 border border-gray-200"
-            >
-              Go Home
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Loading state
   if (loading) {
     return (
@@ -632,32 +600,14 @@ const Messages = () => {
     );
   }
 
-  // If no current user but loading is false
-  if (!currentUser && !loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50 flex flex-col items-center justify-center safe-area">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-8 h-8 text-red-600" />
-          </div>
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Authentication Required</h3>
-          <p className="text-gray-600 text-sm mb-6">Please login to access your messages</p>
-          <button
-            onClick={() => navigate('/login')}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-6 py-3 rounded-xl transition-all active:scale-95 shadow-md"
-          >
-            Go to Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50 safe-area">
+      {/* Use your Header component */}
+      <Header title="Messages" showBack={false} />
+      
       {/* FEEDBACK MESSAGE */}
       {feedback && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
           <div className={`rounded-2xl shadow-xl p-4 flex items-center gap-3 ${
             feedback.type === 'success' 
               ? 'bg-green-600 text-white' 
@@ -683,65 +633,56 @@ const Messages = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-gradient-to-b from-gray-50 to-blue-50 px-4 pt-6 pb-4 border-b border-gray-200/80">
-        <div className="max-w-screen-sm mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Messages</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-xs text-gray-600">
-                    {onlineFriendsCount} online
+      {/* Main Content */}
+      <div className="px-4 pt-4 pb-24 max-w-screen-sm mx-auto">
+        {/* Stats Card */}
+        <div className="mb-6">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm text-gray-700 mb-1">Message Overview</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {onlineFriendsCount} online
+                    </span>
+                  </div>
+                  <div className="w-px h-4 bg-gray-300"></div>
+                  <span className="text-sm text-gray-600">
+                    {totalUnread > 0 ? `${totalUnread} unread messages` : 'All caught up!'}
                   </span>
                 </div>
-                <span className="text-xs text-gray-400">•</span>
-                <span className="text-xs text-gray-600">
-                  {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
-                </span>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={handleRefresh}
-                className="p-3 bg-gray-100 rounded-2xl text-gray-700 hover:bg-gray-200 active:scale-95 transition-all"
-                title="Refresh"
-                disabled={loading}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
               <button 
                 onClick={() => setIsNewChatOpen(true)}
-                className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
+                className="p-3 bg-blue-600 rounded-xl text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-all"
                 title="New Message"
-                disabled={loading}
               >
                 <MessageSquarePlus size={22} />
               </button>
             </div>
           </div>
+        </div>
 
+        {/* Search and Filter */}
+        <div className="mb-6">
           {/* Search Bar */}
-          <div className="relative group mt-4">
+          <div className="relative group mb-4">
             <div className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center">
               <Search className="text-gray-400 group-focus-within:text-blue-600 transition-colors" size={20} />
             </div>
             <input
               type="text"
-              className="w-full pl-12 pr-12 py-3.5 bg-white border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+              className="w-full pl-12 pr-12 py-3.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               placeholder="Search messages, people..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={loading}
             />
             {searchTerm && (
               <button
                 onClick={clearSearch}
-                className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
-                disabled={loading}
+                className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X size={18} />
               </button>
@@ -749,26 +690,24 @@ const Messages = () => {
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2">
             <button
               onClick={() => setActiveFilter('all')}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all disabled:opacity-50 ${
+              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all ${
                 activeFilter === 'all'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
-              disabled={loading}
             >
               All
             </button>
             <button
               onClick={() => setActiveFilter('unread')}
-              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
+              className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                 activeFilter === 'unread'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
-              disabled={loading}
             >
               Unread
               {totalUnread > 0 && (
@@ -781,44 +720,6 @@ const Messages = () => {
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Main Content */}
-      <main className="px-4 pt-4 pb-24 max-w-screen-sm mx-auto">
-        {/* Stats */}
-        {conversations.length > 0 && (
-          <div className="mb-6">
-            <div className="bg-blue-50 rounded-2xl border border-blue-200 p-4">
-              <div className="grid grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl p-3 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{conversations.length}</div>
-                  <div className="text-xs text-gray-600">Chats</div>
-                </div>
-                <div className="bg-white rounded-xl p-3 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{unreadCount}</div>
-                  <div className="text-xs text-gray-600">Unread</div>
-                </div>
-                <div className="bg-white rounded-xl p-3 text-center">
-                  <div className="text-2xl font-bold text-gray-900">{friends.length}</div>
-                  <div className="text-xs text-gray-600">Contacts</div>
-                </div>
-                <div className="bg-white rounded-xl p-3 text-center">
-                  <div className="text-2xl font-bold text-green-600">{onlineFriendsCount}</div>
-                  <div className="text-xs text-gray-600">Online</div>
-                </div>
-              </div>
-              <div className="mt-3 pt-3 border-t border-blue-100">
-                <div className="flex items-center justify-between text-xs text-gray-600">
-                  <span>Last updated: {formatTimeAgo(lastUpdated.toISOString())}</span>
-                  <span className="flex items-center gap-1">
-                    <Wifi size={12} className="text-green-500" />
-                    <span>Live updates active</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Conversations List */}
         <div>
@@ -839,8 +740,7 @@ const Messages = () => {
               </p>
               <button
                 onClick={() => setIsNewChatOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-6 py-3 rounded-xl transition-all active:scale-95 shadow-md disabled:opacity-50"
-                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-6 py-3 rounded-xl transition-all active:scale-95 shadow-md"
               >
                 Start New Chat
               </button>
@@ -850,8 +750,8 @@ const Messages = () => {
               {filteredConversations.map(conv => (
                 <div 
                   key={conv.id} 
-                  onClick={() => navigate(`/messages/chat/${conv.id}`)}
-                  className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => handleOpenExistingChat(conv.id)}
+                  className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all cursor-pointer active:scale-[0.99]"
                 >
                   <div className="p-4">
                     <div className="flex items-start justify-between">
@@ -887,12 +787,6 @@ const Messages = () => {
                               <h3 className="text-sm font-bold text-gray-900 truncate">
                                 {conv.with_user.name}
                               </h3>
-                              {conv.with_user.status === 'online' && (
-                                <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded-md flex items-center gap-1">
-                                  <Wifi size={8} />
-                                  Online
-                                </span>
-                              )}
                             </div>
                             <span className="text-xs text-gray-400 whitespace-nowrap ml-2">
                               {conv.last_message_at}
@@ -918,17 +812,17 @@ const Messages = () => {
             </div>
           )}
         </div>
-      </main>
+      </div>
 
-      {/* New Chat Modal */}
+      {/* New Chat Modal - Bottom Sheet */}
       {isNewChatOpen && (
         <>
           <div 
-            className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm transition-opacity"
             onClick={() => !openingChat && setIsNewChatOpen(false)}
           ></div>
-          <div className="fixed inset-0 z-50 flex items-end justify-center">
-            <div className="bg-white w-full max-w-screen-sm mx-auto h-[85vh] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col">
+          <div className="fixed bottom-0 left-0 right-0 z-50 max-w-screen-sm mx-auto">
+            <div className="bg-white w-full h-[85vh] rounded-t-2xl shadow-2xl border border-gray-200 flex flex-col">
               {/* Modal Header */}
               <div className="p-4 border-b border-gray-200 bg-white rounded-t-2xl">
                 <div className="flex items-center justify-between mb-4">
@@ -940,17 +834,11 @@ const Messages = () => {
                           ? `${friends.filter(f => f.is_friend).length} connections` 
                           : `${friends.length} members available`}
                       </p>
-                      {onlineFriendsCount > 0 && (
-                        <span className="text-xs text-green-600 flex items-center gap-1">
-                          <Wifi size={10} />
-                          {onlineFriendsCount} online
-                        </span>
-                      )}
                     </div>
                   </div>
                   <button 
                     onClick={() => !openingChat && setIsNewChatOpen(false)}
-                    className="p-2 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50"
+                    className="p-2 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
                     disabled={openingChat !== null}
                   >
                     <X size={20} />
@@ -1013,8 +901,7 @@ const Messages = () => {
                             setIsNewChatOpen(false);
                             navigate('/members');
                           }}
-                          className="mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium underline disabled:opacity-50"
-                          disabled={openingChat !== null}
+                          className="mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium underline"
                         >
                           Explore Members →
                         </button>
@@ -1060,11 +947,6 @@ const Messages = () => {
                                   <CheckCircle2 size={10} className="text-white" />
                                 </div>
                               )}
-                              {friend.is_online && (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full flex items-center justify-center shadow-md">
-                                  <Wifi size={6} className="text-white" />
-                                </div>
-                              )}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
@@ -1082,17 +964,6 @@ const Messages = () => {
                                 <p className="text-xs text-gray-500 truncate">
                                   Member
                                 </p>
-                                {friend.is_online ? (
-                                  <span className="text-xs text-green-600 flex items-center gap-1">
-                                    <Wifi size={10} />
-                                    Online
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-gray-400 flex items-center gap-1">
-                                    <WifiOff size={10} />
-                                    Offline
-                                  </span>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -1110,7 +981,7 @@ const Messages = () => {
                     setIsNewChatOpen(false);
                     navigate('/members');
                   }}
-                  className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold rounded-xl transition-all active:scale-95 shadow-sm border border-gray-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold rounded-xl transition-all active:scale-95 shadow-sm border border-gray-200 flex items-center justify-center gap-2"
                   disabled={openingChat !== null}
                 >
                   <Users size={14} />
