@@ -18,6 +18,7 @@ import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
+import ListingDetails from './pages/ListingDetails';
 
 function App() {
   return (
@@ -48,6 +49,11 @@ function App() {
             <Route path="/marketplace" element={
               <Layout>
                 <Marketplace />
+              </Layout>
+            } />
+            <Route path="/listing/:id" element={
+              <Layout>
+                <ListingDetails />
               </Layout>
             } />
             <Route path="/businesses" element={
