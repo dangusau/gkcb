@@ -2,38 +2,49 @@ import { supabase } from './client';
 
 export const storageService = {
   async uploadMarketplaceImages(files: File[], userId: string): Promise<string[]> {
-    const imageUrls: string[] = [];
-    
-    for (const file of files) {
-      try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-        const filePath = `marketplace/${userId}/${fileName}`;
+  console.log('🚀 Starting upload:', files.length, 'files for user:', userId);
+  
+  const imageUrls: string[] = [];
+  
+  for (const file of files) {
+    try {
+      console.log('📁 File:', file.name, 'size:', file.size, 'type:', file.type);
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `marketplace/${userId}/${fileName}`;
+      
+      console.log('📤 Uploading to:', filePath);
 
-        const { error: uploadError } = await supabase.storage
-          .from('marketplace-images')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
+      const { data, error: uploadError } = await supabase.storage
+        .from('marketplace-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          continue;
-        }
+      console.log('📦 Upload response:', { data, error: uploadError });
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('marketplace-images')
-          .getPublicUrl(filePath);
-
-        imageUrls.push(publicUrl);
-      } catch (error) {
-        console.error('Error uploading image:', error);
+      if (uploadError) {
+        console.error('❌ Upload error:', uploadError);
+        continue;
       }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('marketplace-images')
+        .getPublicUrl(filePath);
+      
+      console.log('✅ Public URL:', publicUrl);
+      imageUrls.push(publicUrl);
+      
+    } catch (error) {
+      console.error('💥 Error uploading image:', error);
     }
-    
-    return imageUrls;
-  },
+  }
+  
+  console.log('🎯 Final URLs:', imageUrls);
+  return imageUrls;
+},
 
   async uploadPostImages(files: File[], userId: string): Promise<string[]> {
     const imageUrls: string[] = [];

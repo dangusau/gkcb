@@ -22,16 +22,16 @@ const ListingDetails: React.FC = () => {
   }, [id]);
 
   const loadListing = async () => {
-    try {
-      const listings = await marketplaceService.getListings({ limit: 50 });
-      const found = listings.find(l => l.id === id);
-      setListing(found || null);
-    } catch (error) {
-      console.error('Error loading listing:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    if (!id) return;
+    const listingData = await marketplaceService.getListingById(id);
+    setListing(listingData);
+  } catch (error) {
+    console.error('Error loading listing:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleFavorite = async () => {
     if (!listing) return;

@@ -43,6 +43,8 @@ export const marketplaceService = {
       user.id
     );
 
+    
+
     const { data, error } = await supabase.rpc('create_listing', {
       p_title: listingData.title,
       p_description: listingData.description,
@@ -111,5 +113,23 @@ export const marketplaceService = {
 
     if (error) throw error;
     return data;
-  }
+  }, 
+  // Get single listing by ID
+async getListingById(listingId: string): Promise<MarketplaceListing | null> {
+  const { data, error } = await supabase.rpc('get_listing_by_id', {
+    p_listing_id: listingId
+  });
+
+  if (error) throw error;
+  return data?.[0] || null;
+},
+
+// Mark listing as sold
+async markAsSold(listingId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_listing_sold', {
+    p_listing_id: listingId
+  });
+
+  if (error) throw error;
+},
 };
