@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import MobileAppWrapper from './components/MobileAppWrapper';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
+import { updateLastSeen } from './utils/onlineStatus';
 
 // Import pages
 import Home from './pages/Home';
@@ -19,9 +20,34 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import ListingDetails from './pages/ListingDetails';
-import Conversation from './pages/Conversation';
+import Conversations from './pages/Conversations';
+import ChatWindow from './pages/ChatWindow';
+import NewConversation from './pages/NewConversation';
 
 function App() {
+  // Update user's last seen on app activity
+  useEffect(() => {
+    const handleActivity = () => {
+      updateLastSeen();
+    };
+
+    // Update on various user activities
+    const events = ['click', 'keypress', 'scroll', 'mousemove'];
+    events.forEach(event => {
+      window.addEventListener(event, handleActivity);
+    });
+
+    // Update every 30 seconds while app is active
+    const interval = setInterval(updateLastSeen, 30000);
+
+    return () => {
+      events.forEach(event => {
+        window.removeEventListener(event, handleActivity);
+      });
+      clearInterval(interval);
+    };
+  }, []);
+
   return (
     <Router>
       <AuthProvider>
@@ -74,15 +100,19 @@ function App() {
             } />
             <Route path="/messages" element={
               <Layout>
-                <Messages />
+                <Conversations />
               </Layout>
             } />
-<Route path="/messages/:listingId/:userId" element={
-  <Layout>
-    <Conversation />
-  </Layout>
-} />
-
+            <Route path="/messages/:conversationId" element={
+              <Layout>
+                <ChatWindow />
+              </Layout>
+            } />
+            <Route path="/messages/new" element={
+              <Layout>
+                <NewConversation />
+              </Layout>
+            } />
             <Route path="/notifications" element={
               <Layout>
                 <Notifications />
