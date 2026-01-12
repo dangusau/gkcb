@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, Image as ImageIcon, DollarSign, MapPin, Tag } from 'lucide-react';
+import { X, Upload, DollarSign, MapPin } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -30,20 +30,39 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUploading(true);
     
-    const listingData = {
-      title,
-      description,
-      price: parseFloat(price),
-      category,
-      condition,
-      location,
-      images: [] // Will be uploaded and URLs added
-    };
+    console.log('📋 SUBMITTING FORM DATA:');
+    console.log('Title:', title);
+    console.log('Description:', description);
+    console.log('Price:', price);
+    console.log('Category:', category);
+    console.log('Condition:', condition);
+    console.log('Location:', location);
+    console.log('Images count:', images.length);
+    console.log('Images details:', images.map((img, i) => `${i}: ${img.name} (${img.size} bytes)`));
 
-    await onSubmit(listingData);
-    resetForm();
-    onClose();
+    try {
+      const listingData = {
+        title,
+        description,
+        price: parseFloat(price),
+        category,
+        condition,
+        location,
+        images // This should be the File objects
+      };
+
+      console.log('📦 SENDING TO PARENT:', listingData);
+      await onSubmit(listingData);
+      resetForm();
+      onClose();
+    } catch (error) {
+      console.error('Error creating listing:', error);
+      alert('Failed to create listing. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const resetForm = () => {
@@ -57,14 +76,41 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    console.log('📁 FILE INPUT TRIGGERED');
+    console.log('Files in input:', e.target.files);
+    
+    if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
-      setImages(prev => [...prev, ...newFiles].slice(0, 5)); // Max 5 images
+      console.log('📁 NEW FILES TO ADD:', newFiles.map(f => `${f.name} (${f.size} bytes)`));
+      
+      setImages(prev => {
+        const updated = [...prev, ...newFiles].slice(0, 5);
+        console.log('📁 UPDATED IMAGES STATE:', updated.map(f => f.name));
+        return updated;
+      });
+      
+      // Reset input to allow selecting same file again
+      e.target.value = '';
+    } else {
+      console.log('📁 NO FILES SELECTED');
     }
   };
 
   const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    console.log('🗑️ Removing image at index:', index);
+    setImages(prev => {
+      const newImages = prev.filter((_, i) => i !== index);
+      console.log('🗑️ New images array:', newImages.map(f => f.name));
+      return newImages;
+    });
+  };
+
+  const debugImages = () => {
+    console.log('🐛 CURRENT IMAGES STATE:');
+    console.log('Length:', images.length);
+    images.forEach((img, i) => {
+      console.log(`  ${i}: ${img.name} - ${img.size} bytes - ${img.type}`);
+    });
   };
 
   if (!isOpen) return null;
@@ -72,16 +118,21 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
       <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl md:rounded-2xl">
-        {/* Header */}
         <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">Create Listing</h2>
+          <button 
+            type="button"
+            onClick={debugImages}
+            className="text-xs bg-gray-100 px-2 py-1 rounded"
+          >
+            Debug
+          </button>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
             <X size={24} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Title */}
           <div>
             <label className="block text-sm font-medium mb-2">Title *</label>
             <input
@@ -94,7 +145,6 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
             />
           </div>
 
-          {/* Description */}
           <div>
             <label className="block text-sm font-medium mb-2">Description</label>
             <textarea
@@ -106,7 +156,6 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
             />
           </div>
 
-          {/* Price & Category */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Price (₦) *</label>
@@ -141,7 +190,6 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
             </div>
           </div>
 
-          {/* Condition & Location */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Condition *</label>
@@ -174,7 +222,6 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
             </div>
           </div>
 
-          {/* Images */}
           <div>
             <label className="block text-sm font-medium mb-2">
               Images ({images.length}/5)
@@ -216,7 +263,6 @@ const CreateListingModal: React.FC<Props> = ({ isOpen, onClose, onSubmit }) => {
             </p>
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={uploading}

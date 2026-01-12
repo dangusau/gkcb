@@ -90,6 +90,46 @@ const Home: React.FC = () => {
     };
   }, [pioneers.length]);
 
+  // Real-time subscriptions for likes and comments
+  useEffect(() => {
+    // Subscribe to post likes real-time updates
+    const postLikesChannel = supabase
+      .channel('post-likes-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'post_likes' 
+        }, 
+        () => {
+          // Refresh posts when likes change
+          loadPosts();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to comments real-time updates
+    const commentsChannel = supabase
+      .channel('comments-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'comments' 
+        }, 
+        () => {
+          // Refresh posts when comments change
+          loadPosts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(postLikesChannel);
+      supabase.removeChannel(commentsChannel);
+    };
+  }, []);
+
   // Infinite scroll observer
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -160,9 +200,9 @@ const Home: React.FC = () => {
 
       const { data, error } = await supabase
         .rpc('get_home_feed', {
-          current_user_id: user.id,
-          limit_count: POSTS_PER_PAGE,
-          offset_count: 0
+          p_current_user_id: user.id,
+          p_limit_count: POSTS_PER_PAGE,
+          p_offset_count: 0
         });
 
       if (error) {
@@ -212,9 +252,9 @@ const Home: React.FC = () => {
 
       const { data, error } = await supabase
         .rpc('get_home_feed', {
-          current_user_id: user.id,
-          limit_count: POSTS_PER_PAGE,
-          offset_count: postOffset
+          p_current_user_id: user.id,
+          p_limit_count: POSTS_PER_PAGE,
+          p_offset_count: postOffset
         });
 
       if (error) throw error;
@@ -260,8 +300,8 @@ const Home: React.FC = () => {
 
       const { data, error } = await supabase
         .rpc('toggle_post_like', {
-          post_id: postId,
-          user_id: user.id
+          p_post_id: postId,
+          p_user_id: user.id
         });
 
       if (error) throw error;
@@ -281,7 +321,7 @@ const Home: React.FC = () => {
     }
   };
 
-  // Handle post share - FIXED VERSION
+  // Handle post share
   const handleShare = async (postId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -302,14 +342,12 @@ const Home: React.FC = () => {
 
       console.log('Share function returned:', data);
 
-      // Parse the JSON response
       const result = data as {
         action: string;
         shares_count: number;
         has_shared: boolean;
       };
 
-      // Update local state
       setPosts(prev => prev.map(post => {
         if (post.id === postId) {
           return {
@@ -321,20 +359,16 @@ const Home: React.FC = () => {
         return post;
       }));
 
-      // If share was successful, show share options
       if (result.action === 'shared') {
-        // Create share options
         const post = posts.find(p => p.id === postId);
         const shareText = `Check out this post from GKBC: "${post?.content?.substring(0, 100)}..."`;
         const shareUrl = `${window.location.origin}/post/${postId}`;
         
-        // Simple share modal
         if (window.confirm(`Share this post?\n\nOptions:\n1. Copy Link\n2. Share to WhatsApp\n3. Repost`)) {
           const choice = prompt('Choose option:\n1. Copy Link\n2. Share to WhatsApp\n3. Repost', '1');
           
           switch (choice) {
             case '1':
-              // Copy link to clipboard
               try {
                 await navigator.clipboard.writeText(shareUrl);
                 alert('Link copied to clipboard!');
@@ -344,12 +378,10 @@ const Home: React.FC = () => {
               }
               break;
             case '2':
-              // Share to WhatsApp
               const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`;
               window.open(whatsappUrl, '_blank');
               break;
             case '3':
-              // Repost functionality
               try {
                 const { error: repostError } = await supabase.from('posts').insert({
                   author_id: user.id,
@@ -374,12 +406,11 @@ const Home: React.FC = () => {
     }
   };
 
-  // Load comments for a post - CORRECTED VERSION
+  // Load comments for a post
   const loadComments = async (postId: string) => {
     try {
       setCommentLoading(prev => ({ ...prev, [postId]: true }));
       
-      // Using the corrected function with p_post_id and p_limit_count parameters
       const { data, error } = await supabase
         .rpc('get_post_comments', {
           p_post_id: postId,
@@ -393,23 +424,21 @@ const Home: React.FC = () => {
 
       console.log('Comments loaded successfully:', data);
       
-      // Transform data to match your Comment interface
       const transformedComments: Comment[] = (data || []).map((comment: any) => ({
         id: comment.id,
-        author_id: comment.user_id,  // user_id from function maps to author_id in interface
+        author_id: comment.user_id,
         author_name: comment.user_name || 'User',
         author_avatar: comment.avatar_url || '',
         content: comment.content,
         likes_count: comment.likes_count || 0,
         created_at: comment.created_at,
-        updated_at: comment.created_at,  // Use created_at since we don't have updated_at
+        updated_at: comment.created_at,
         has_liked: false
       }));
 
       setComments(prev => ({ ...prev, [postId]: transformedComments }));
     } catch (error) {
       console.error('Error loading comments:', error);
-      // Fallback: load comments directly from table
       try {
         const { data: fallbackData } = await supabase
           .from('comments')
@@ -451,9 +480,9 @@ const Home: React.FC = () => {
 
       const { data, error } = await supabase
         .rpc('add_comment', {
-          post_id: postId,
-          author_id: user.id,
-          comment_content: newComment.trim()
+          p_post_id: postId,
+          p_author_id: user.id,
+          p_comment_content: newComment.trim()
         });
 
       if (error) throw error;
