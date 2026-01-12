@@ -9,6 +9,7 @@ export const marketplaceService = {
     maxPrice?: number;
     location?: string;
     search?: string;
+    condition?: string;
     limit?: number;
     offset?: number;
   }): Promise<MarketplaceListing[]> {
@@ -18,6 +19,7 @@ export const marketplaceService = {
       p_max_price: filters?.maxPrice,
       p_location: filters?.location,
       p_search: filters?.search,
+      p_condition: filters?.condition,
       p_limit: filters?.limit || 20,
       p_offset: filters?.offset || 0
     });
@@ -42,8 +44,6 @@ export const marketplaceService = {
       listingData.images, 
       user.id
     );
-
-    
 
     const { data, error } = await supabase.rpc('create_listing', {
       p_title: listingData.title,
@@ -113,23 +113,22 @@ export const marketplaceService = {
 
     if (error) throw error;
     return data;
-  }, 
-  // Get single listing by ID
-async getListingById(listingId: string): Promise<MarketplaceListing | null> {
-  const { data, error } = await supabase.rpc('get_listing_by_id', {
-    p_listing_id: listingId
-  });
+  },
 
-  if (error) throw error;
-  return data?.[0] || null;
-},
+  async getListingById(listingId: string): Promise<MarketplaceListing | null> {
+    const { data, error } = await supabase.rpc('get_listing_by_id', {
+      p_listing_id: listingId
+    });
 
-// Mark listing as sold
-async markAsSold(listingId: string): Promise<void> {
-  const { error } = await supabase.rpc('mark_listing_sold', {
-    p_listing_id: listingId
-  });
+    if (error) throw error;
+    return data?.[0] || null;
+  },
 
-  if (error) throw error;
-},
+  async markAsSold(listingId: string): Promise<void> {
+    const { error } = await supabase.rpc('mark_listing_sold', {
+      p_listing_id: listingId
+    });
+
+    if (error) throw error;
+  }
 };

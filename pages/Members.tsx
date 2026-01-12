@@ -6,7 +6,7 @@ import { Member } from '../types/index';
 import { formatTimeAgo } from '../utils/formatters';
 
 const Members: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'all' | 'connections' | 'requests'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'connections'>('all');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -49,11 +49,16 @@ const Members: React.FC = () => {
       const currentPage = reset ? 0 : page;
       const data = await membersService.getMembers(search, businessType, marketArea, currentPage, 20);
       
+      // Filter out already connected members from All Members tab
+      const filteredData = data.filter(member => 
+        member.connection_status !== 'accepted'
+      );
+      
       if (reset) {
-        setMembers(data);
+        setMembers(filteredData);
         setPage(1);
       } else {
-        setMembers(prev => [...prev, ...data]);
+        setMembers(prev => [...prev, ...filteredData]);
         setPage(prev => prev + 1);
       }
       
@@ -68,9 +73,8 @@ const Members: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'all') {
       loadMembers(true);
-    } else if (activeTab === 'requests') {
-      loadReceivedRequests();
     } else if (activeTab === 'connections') {
+      loadReceivedRequests();
       loadFriends();
     }
   }, [search, businessType, marketArea, activeTab]);
@@ -92,10 +96,11 @@ const Members: React.FC = () => {
     switch (member.connection_status) {
       case 'accepted':
         return (
-          <button className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg border border-green-300 text-sm">
-            <Check size={14} />
-            Connected
-          </button>
+          <div className="flex items-center gap-1 px-3 py-1.5 text-sm">
+            <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded border border-blue-300">
+              ✓
+            </span>
+          </div>
         );
       case 'pending':
         return (
@@ -147,21 +152,12 @@ const Members: React.FC = () => {
           </button>
           <button 
             onClick={() => setActiveTab('connections')} 
-            className={`flex-1 py-3 text-center font-medium ${activeTab === 'connections' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 py-3 text-center font-medium relative ${activeTab === 'connections' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             <div className="flex items-center justify-center gap-2">
               <UserCheck size={18} />
               Connections
-            </div>
-          </button>
-          <button 
-            onClick={() => setActiveTab('requests')} 
-            className={`flex-1 py-3 text-center font-medium relative ${activeTab === 'requests' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <UserPlus size={18} />
-              Requests
-              {receivedRequests.length > 0 && (
+              {(receivedRequests.length > 0) && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                   {receivedRequests.length}
                 </span>
@@ -309,9 +305,11 @@ const Members: React.FC = () => {
                               <h3 className="font-bold text-gray-900 text-sm">
                                 {member.first_name} {member.last_name}
                               </h3>
-                              <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded border border-blue-300">
-                                ✓
-                              </span>
+                              {member.connection_status === 'accepted' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded border border-blue-300">
+                                  ✓
+                                </span>
+                              )}
                             </div>
                             {member.business_name && (
                               <p className="text-gray-700 text-xs font-medium truncate max-w-[120px]">
@@ -401,7 +399,7 @@ const Members: React.FC = () => {
                   </div>
                 ))}
               </div>
-            ) : friends.length === 0 ? (
+            ) : friends.length === 0 && receivedRequests.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-20 h-20 bg-blue-100 rounded-full mx-auto mb-4 flex items-center justify-center border border-blue-300">
                   <UserCheck size={32} className="text-blue-500" />
@@ -416,100 +414,96 @@ const Members: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {friends.map((friend) => (
-                  <div key={friend.user_id} className="bg-white rounded-xl p-4 border border-blue-200 hover:border-blue-400 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full overflow-hidden border-2 border-blue-300">
-                          {friend.user_avatar ? (
-                            <img src={friend.user_avatar} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-white font-bold">
-                              {friend.user_name.charAt(0)}
+              <div className="space-y-6">
+                {/* Pending Connection Requests */}
+                {receivedRequests.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">Connection Requests</h3>
+                    <div className="space-y-3">
+                      {receivedRequests.map((request) => (
+                        <div key={request.id} className="bg-white rounded-xl p-4 border border-blue-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full overflow-hidden border-2 border-blue-300">
+                              {request.sender_avatar ? (
+                                <img src={request.sender_avatar} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white font-bold">
+                                  {request.sender_name.charAt(0)}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-900">{friend.user_name}</h3>
-                          <p className="text-sm text-gray-500">{friend.user_email}</p>
-                          <p className="text-xs text-gray-400">Connected {formatTimeAgo(friend.connected_at)}</p>
-                        </div>
-                      </div>
-                      <button className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg border border-green-300 text-sm">
-                        <Check size={14} />
-                        Connected
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Requests Tab */}
-        {activeTab === 'requests' && (
-          <div>
-            {connectionsLoading ? (
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="bg-white rounded-xl p-4 border animate-pulse">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-                      <div className="space-y-2">
-                        <div className="h-4 bg-gray-200 rounded w-32"></div>
-                        <div className="h-3 bg-gray-200 rounded w-24"></div>
-                      </div>
-                    </div>
-                    <div className="h-8 bg-gray-200 rounded w-full"></div>
-                  </div>
-                ))}
-              </div>
-            ) : receivedRequests.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-20 h-20 bg-blue-100 rounded-full mx-auto mb-4 flex items-center justify-center border border-blue-300">
-                  <UserPlus size={32} className="text-blue-500" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No connection requests</h3>
-                <p className="text-gray-600">When someone sends you a connection request, it will appear here.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {receivedRequests.map((request) => (
-                  <div key={request.id} className="bg-white rounded-xl p-4 border border-blue-200">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full overflow-hidden border-2 border-blue-300">
-                        {request.sender_avatar ? (
-                          <img src={request.sender_avatar} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white font-bold">
-                            {request.sender_name.charAt(0)}
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-gray-900">{request.sender_name}</h3>
+                                <span className="inline-flex items-center px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-bold rounded border border-yellow-300">
+                                  Pending
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-500">{request.sender_email}</p>
+                              <p className="text-xs text-gray-400">Sent {formatTimeAgo(request.created_at)}</p>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-gray-900">{request.sender_name}</h3>
-                        <p className="text-sm text-gray-500">{request.sender_email}</p>
-                        <p className="text-xs text-gray-400">Sent {formatTimeAgo(request.created_at)}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => acceptRequest(request.id)}
-                        className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => rejectRequest(request.id)}
-                        className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
-                      >
-                        Reject
-                      </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => acceptRequest(request.id)}
+                              className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => rejectRequest(request.id)}
+                              className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+
+                {/* Accepted Connections */}
+                {friends.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">
+                      {receivedRequests.length > 0 ? 'Your Connections' : 'All Connections'}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {friends.map((friend) => (
+                        <div key={friend.user_id} className="bg-white rounded-xl p-4 border border-blue-200 hover:border-blue-400 transition-colors">
+                          <div className="flex flex-col">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full overflow-hidden border-2 border-blue-300 shadow flex-shrink-0">
+                                  {friend.user_avatar ? (
+                                    <img src={friend.user_avatar} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-white font-bold">
+                                      {friend.user_name.charAt(0)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1">
+                                    <h3 className="font-bold text-gray-900 text-sm">
+                                      {friend.user_name}
+                                    </h3>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded border border-blue-300">
+                                      ✓
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-500">{friend.user_email}</p>
+                                  <p className="text-xs text-gray-400">Connected {formatTimeAgo(friend.connected_at)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

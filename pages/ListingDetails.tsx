@@ -22,16 +22,16 @@ const ListingDetails: React.FC = () => {
   }, [id]);
 
   const loadListing = async () => {
-  try {
-    if (!id) return;
-    const listingData = await marketplaceService.getListingById(id);
-    setListing(listingData);
-  } catch (error) {
-    console.error('Error loading listing:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      if (!id) return;
+      const listingData = await marketplaceService.getListingById(id);
+      setListing(listingData);
+    } catch (error) {
+      console.error('Error loading listing:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFavorite = async () => {
     if (!listing) return;
@@ -82,7 +82,7 @@ const ListingDetails: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-24">
+    <div className="min-h-screen bg-white">
       <div className="sticky top-0 bg-white border-b z-10 p-4 flex items-center justify-between">
         <button onClick={() => navigate(-1)} className="p-2">
           <ArrowLeft size={24} />
@@ -133,7 +133,7 @@ const ListingDetails: React.FC = () => {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 pb-32">
         <div className="flex justify-between items-start mb-2">
           <h1 className="text-2xl font-bold">{listing.title}</h1>
           <span className="text-2xl font-bold text-blue-600">₦{listing.price.toLocaleString()}</span>
@@ -189,7 +189,7 @@ const ListingDetails: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <h4 className="font-bold text-yellow-800 mb-2">Safety Tips</h4>
           <ul className="text-sm text-yellow-700 space-y-1">
             <li>• Meet in a public place</li>
@@ -200,15 +200,19 @@ const ListingDetails: React.FC = () => {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex gap-3">
+      {/* Contact Button - Fixed above BottomNav */}
+      <div className="fixed bottom-20 left-0 right-0 bg-white border-t p-4 flex gap-3 z-50 shadow-lg">
         <button
           onClick={() => setShowContact(true)}
-          className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2"
+          className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700"
         >
           <MessageCircle size={20} />
           Contact Seller
         </button>
-        <button onClick={handleFavorite} className="px-4 bg-gray-100 rounded-lg flex items-center justify-center">
+        <button 
+          onClick={handleFavorite} 
+          className="px-6 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200"
+        >
           <Heart
             size={20}
             fill={listing.is_favorited ? 'red' : 'none'}
@@ -217,6 +221,7 @@ const ListingDetails: React.FC = () => {
         </button>
       </div>
 
+      {/* Contact Modal */}
       {showContact && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
           <div className="bg-white w-full rounded-t-2xl p-6">
@@ -225,13 +230,13 @@ const ListingDetails: React.FC = () => {
             <div className="space-y-3 mb-6">
               <button 
                 onClick={handleSendMessage}
-                className="w-full p-4 bg-blue-50 text-blue-700 rounded-lg flex items-center justify-center gap-3"
+                className="w-full p-4 bg-blue-50 text-blue-700 rounded-lg flex items-center justify-center gap-3 hover:bg-blue-100"
               >
                 <MessageCircle size={24} />
                 <span className="font-bold">Send Message</span>
               </button>
               
-              <button className="w-full p-4 bg-green-50 text-green-700 rounded-lg flex items-center justify-center gap-3">
+              <button className="w-full p-4 bg-green-50 text-green-700 rounded-lg flex items-center justify-center gap-3 hover:bg-green-100">
                 <Phone size={24} />
                 <span className="font-bold">Call Seller</span>
               </button>
@@ -239,7 +244,7 @@ const ListingDetails: React.FC = () => {
 
             <button
               onClick={() => setShowContact(false)}
-              className="w-full py-3 border border-gray-300 rounded-lg"
+              className="w-full py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               Cancel
             </button>
