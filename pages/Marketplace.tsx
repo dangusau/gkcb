@@ -16,10 +16,16 @@ const Marketplace: React.FC = () => {
   }, [getListings, selectedCategory]);
 
   const handleCreateListing = async (listingData: any) => {
+    console.log('🔄 Marketplace.tsx received listingData:', listingData);
+    console.log('🔄 Images in listingData:', listingData.images);
+    console.log('🔄 Images count:', listingData.images?.length);
+    console.log('🔄 Images type:', typeof listingData.images);
+    console.log('🔄 Is images array?', Array.isArray(listingData.images));
+    
     try {
-      // TODO: Upload images first, get URLs, then create listing
-      const imageUrls = []; // Upload logic here
-      await createListing({ ...listingData, images: imageUrls });
+      // Pass images through without replacing them
+      // The upload logic should happen in the createListing function or service
+      await createListing(listingData);
     } catch (error) {
       console.error('Error creating listing:', error);
       throw error;

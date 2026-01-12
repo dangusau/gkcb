@@ -19,6 +19,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import ListingDetails from './pages/ListingDetails';
+import Conversation from './pages/Conversation';
 
 function App() {
   return (
@@ -76,6 +77,12 @@ function App() {
                 <Messages />
               </Layout>
             } />
+<Route path="/messages/:listingId/:userId" element={
+  <Layout>
+    <Conversation />
+  </Layout>
+} />
+
             <Route path="/notifications" element={
               <Layout>
                 <Notifications />
