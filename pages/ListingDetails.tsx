@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Heart, Share2, MapPin, Eye, MessageCircle, Phone, Shield } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, MapPin, Eye, MessageCircle, Shield } from 'lucide-react';
 import { marketplaceService } from '../services/supabase/marketplace';
-import { useMessaging } from '../hooks/useMessaging';
+import { messagingService } from '../services/supabase/messaging';
 import { MarketplaceListing } from '../types/marketplace';
 import { formatTimeAgo } from '../utils/formatters';
 
@@ -12,8 +12,7 @@ const ListingDetails: React.FC = () => {
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [showContact, setShowContact] = useState(false);
-  const { sendMessage } = useMessaging();
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -43,15 +42,33 @@ const ListingDetails: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async () => {
+  const handleContactSeller = async () => {
     if (!listing) return;
+    
     try {
-      await sendMessage(listing.id, listing.seller_id, "Is this item still available?");
-      setShowContact(false);
-      alert('Message sent to seller!');
+      setSending(true);
+      
+      // Get or create conversation with seller
+      const conversationId = await messagingService.getOrCreateConversation(listing.seller_id);
+      
+      // Send initial message
+      await messagingService.sendMessage(conversationId, "Hi, I'm interested in your listing. Is this still available?");
+      
+      // Navigate directly to chat
+      navigate(`/messages/${conversationId}`, {
+        state: {
+          otherUser: {
+            id: listing.seller_id,
+            name: listing.seller_name,
+            avatar: listing.seller_avatar
+          }
+        }
+      });
     } catch (error) {
-      console.error('Error sending message:', error);
-      alert('Failed to send message');
+      console.error('Error contacting seller:', error);
+      alert('Failed to send message. Please try again.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -203,11 +220,21 @@ const ListingDetails: React.FC = () => {
       {/* Contact Button - Fixed above BottomNav */}
       <div className="fixed bottom-20 left-0 right-0 bg-white border-t p-4 flex gap-3 z-50 shadow-lg">
         <button
-          onClick={() => setShowContact(true)}
-          className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700"
+          onClick={handleContactSeller}
+          disabled={sending}
+          className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50"
         >
-          <MessageCircle size={20} />
-          Contact Seller
+          {sending ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span>Sending...</span>
+            </>
+          ) : (
+            <>
+              <MessageCircle size={20} />
+              <span>Contact Seller</span>
+            </>
+          )}
         </button>
         <button 
           onClick={handleFavorite} 
@@ -220,37 +247,6 @@ const ListingDetails: React.FC = () => {
           />
         </button>
       </div>
-
-      {/* Contact Modal */}
-      {showContact && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white w-full rounded-t-2xl p-6">
-            <h3 className="text-xl font-bold mb-4">Contact Seller</h3>
-            
-            <div className="space-y-3 mb-6">
-              <button 
-                onClick={handleSendMessage}
-                className="w-full p-4 bg-blue-50 text-blue-700 rounded-lg flex items-center justify-center gap-3 hover:bg-blue-100"
-              >
-                <MessageCircle size={24} />
-                <span className="font-bold">Send Message</span>
-              </button>
-              
-              <button className="w-full p-4 bg-green-50 text-green-700 rounded-lg flex items-center justify-center gap-3 hover:bg-green-100">
-                <Phone size={24} />
-                <span className="font-bold">Call Seller</span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => setShowContact(false)}
-              className="w-full py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
