@@ -12,6 +12,7 @@ import Home from './pages/Home';
 import Members from './pages/Members';
 import Marketplace from './pages/Marketplace';
 import Businesses from './pages/Businesses';
+import BusinessDetails from './pages/BusinessDetails';
 import Explore from './pages/Explore';
 import Profile from './pages/Profile';
 import Messages from './pages/Messages';
@@ -31,13 +32,11 @@ function App() {
       updateLastSeen();
     };
 
-    // Update on various user activities
     const events = ['click', 'keypress', 'scroll', 'mousemove'];
     events.forEach(event => {
       window.addEventListener(event, handleActivity);
     });
 
-    // Update every 30 seconds while app is active
     const interval = setInterval(updateLastSeen, 30000);
 
     return () => {
@@ -88,6 +87,11 @@ function App() {
                 <Businesses />
               </Layout>
             } />
+            <Route path="/business/:id" element={
+              <Layout>
+                <BusinessDetails />
+              </Layout>
+            } />
             <Route path="/explore" element={
               <Layout>
                 <Explore />
@@ -133,21 +137,16 @@ function App() {
   );
 }
 
-// Layout component that includes Header, MobileAppWrapper, and BottomNav
+// Layout component
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header - Full width (outside wrapper) */}
       <Header />
-      
-      {/* Page Content - Inside wrapper (640px max) */}
       <MobileAppWrapper>
         <main className="flex-1 overflow-y-auto pb-20">
           {children}
         </main>
       </MobileAppWrapper>
-      
-      {/* BottomNav - Full width (outside wrapper) */}
       <BottomNav />
     </div>
   );

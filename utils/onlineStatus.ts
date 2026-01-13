@@ -1,12 +1,40 @@
 import { supabase } from '../services/supabase/client';
 
-// Check if user is online (last seen within 5 minutes)
+// Throttle function to limit update frequency
+let lastUpdateTime = 0;
+const UPDATE_INTERVAL = 15 * 60 * 1000; // 15 minutes
+
+// Update user's last seen timestamp (throttled)
+export const updateLastSeen = async (): Promise<void> => {
+  const now = Date.now();
+  
+  // Only update if 15 minutes have passed since last update
+  if (now - lastUpdateTime < UPDATE_INTERVAL) {
+    return;
+  }
+  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  
+  try {
+    await supabase
+      .from('profiles')
+      .update({ last_seen: new Date().toISOString() })
+      .eq('id', user.id);
+    
+    lastUpdateTime = now; // Update the timestamp
+  } catch (error) {
+    console.error('Error updating last seen:', error);
+  }
+};
+
+// Check if user is online (last seen within 15 minutes)
 export const isUserOnline = (lastSeen: string | null): boolean => {
   if (!lastSeen) return false;
   const lastSeenDate = new Date(lastSeen);
   const now = new Date();
   const diffMinutes = (now.getTime() - lastSeenDate.getTime()) / (1000 * 60);
-  return diffMinutes < 5;
+  return diffMinutes < 15; // Changed from 5 to 15 minutes
 };
 
 // Format last seen time
@@ -21,17 +49,6 @@ export const formatLastSeen = (lastSeen: string | null): string => {
   if (diffMinutes < 60) return `Last seen ${diffMinutes} min ago`;
   if (diffMinutes < 1440) return `Last seen ${Math.floor(diffMinutes / 60)} hours ago`;
   return `Last seen ${Math.floor(diffMinutes / 1440)} days ago`;
-};
-
-// Update user's last seen timestamp
-export const updateLastSeen = async (): Promise<void> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  
-  await supabase
-    .from('profiles')
-    .update({ last_seen: new Date().toISOString() })
-    .eq('id', user.id);
 };
 
 // Subscribe to user status changes
