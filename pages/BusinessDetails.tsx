@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, MapPin, Phone, Mail, Globe, Share2, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Star, MapPin, Phone, Mail, Globe, Share2 } from 'lucide-react';
 import { businessService } from '../services/supabase/business';
 import { Business } from '../types/business';
 import { formatTimeAgo } from '../utils/formatters';
+import { useAuth } from '../contexts/AuthContext';
 
 const BusinessDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
@@ -31,6 +33,13 @@ const BusinessDetails: React.FC = () => {
 
   const handleAddReview = async () => {
     if (!business || !newReview.comment.trim()) return;
+    
+    // Check if user is the business owner
+    if (business.owner_id === user?.id) {
+      alert("You cannot review your own business");
+      return;
+    }
+    
     try {
       await businessService.addReview(business.id, newReview.rating, newReview.comment);
       await loadBusiness(); // Refresh business data
@@ -39,6 +48,8 @@ const BusinessDetails: React.FC = () => {
       console.error('Error adding review:', error);
     }
   };
+
+  const isOwner = business?.owner_id === user?.id;
 
   if (loading) {
     return (
@@ -67,7 +78,7 @@ const BusinessDetails: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="sticky top-0 bg-white border-b z-10 p-4 flex items-center justify-between">
         <button onClick={() => navigate(-1)} className="p-2">
@@ -77,20 +88,22 @@ const BusinessDetails: React.FC = () => {
           <button className="p-2">
             <Share2 size={20} />
           </button>
-          <button className="p-2">
-            <MoreVertical size={20} />
-          </button>
         </div>
       </div>
 
       {/* Banner */}
-      <div className="h-48 bg-gray-200">
+      <div className="h-48 bg-gray-200 relative">
         {business.banner_url && (
           <img
             src={business.banner_url}
             alt={business.name}
             className="w-full h-full object-cover"
           />
+        )}
+        {isOwner && (
+          <div className="absolute top-4 left-4 px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-full">
+            Your Business
+          </div>
         )}
       </div>
 
@@ -186,89 +199,98 @@ const BusinessDetails: React.FC = () => {
           </div>
         </div>
 
-        {/* Reviews Section */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-lg">Reviews ({business.review_count})</h3>
-            <div className="flex items-center gap-1">
-              <Star size={18} className="text-yellow-500 fill-yellow-500" />
-              <span className="font-bold">{business.average_rating.toFixed(1)}</span>
+        {/* Reviews Section - Only show for non-owners */}
+        {!isOwner && (
+          <div className="pb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg">Reviews ({business.review_count})</h3>
+              <div className="flex items-center gap-1">
+                <Star size={18} className="text-yellow-500 fill-yellow-500" />
+                <span className="font-bold">{business.average_rating.toFixed(1)}</span>
+              </div>
             </div>
-          </div>
 
-          {/* Add Review */}
-          <div className="bg-gray-50 rounded-xl p-4 mb-4">
-            <h4 className="font-bold mb-3">Add Your Review</h4>
-            <div className="flex gap-2 mb-3">
-              {[1, 2, 3, 4, 5].map(star => (
-                <button
-                  key={star}
-                  onClick={() => setNewReview(prev => ({ ...prev, rating: star }))}
-                  className="text-2xl"
-                >
-                  <Star
-                    size={24}
-                    className={star <= newReview.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}
-                  />
-                </button>
-              ))}
+            {/* Add Review */}
+            <div className="bg-gray-50 rounded-xl p-4 mb-4">
+              <h4 className="font-bold mb-3">Add Your Review</h4>
+              <div className="flex gap-2 mb-3">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    onClick={() => setNewReview(prev => ({ ...prev, rating: star }))}
+                    className="text-2xl"
+                  >
+                    <Star
+                      size={24}
+                      className={star <= newReview.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}
+                    />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={newReview.comment}
+                onChange={(e) => setNewReview(prev => ({ ...prev, comment: e.target.value }))}
+                placeholder="Share your experience..."
+                className="w-full p-3 border rounded-lg mb-3"
+                rows={3}
+              />
+              <button
+                onClick={handleAddReview}
+                disabled={!newReview.comment.trim()}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
+              >
+                Submit Review
+              </button>
             </div>
-            <textarea
-              value={newReview.comment}
-              onChange={(e) => setNewReview(prev => ({ ...prev, comment: e.target.value }))}
-              placeholder="Share your experience..."
-              className="w-full p-3 border rounded-lg mb-3"
-              rows={3}
-            />
-            <button
-              onClick={handleAddReview}
-              disabled={!newReview.comment.trim()}
-              className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-50"
-            >
-              Submit Review
-            </button>
-          </div>
 
-          {/* Reviews List */}
-          <div className="space-y-4">
-            {business.reviews.map((review, index) => (
-              <div key={index} className="border-b pb-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm">
-                    {review.user_name?.charAt(0) || 'U'}
-                  </div>
-                  <div>
-                    <div className="font-bold">{review.user_name}</div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={12}
-                            className={i < review.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}
-                          />
-                        ))}
+            {/* Reviews List */}
+            <div className="space-y-4">
+              {business.reviews.map((review, index) => (
+                <div key={index} className="border-b pb-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm">
+                      {review.user_name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <div className="font-bold">{review.user_name}</div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              size={12}
+                              className={i < review.rating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}
+                            />
+                          ))}
+                        </div>
+                        <span>•</span>
+                        <span>{formatTimeAgo(review.created_at)}</span>
                       </div>
-                      <span>•</span>
-                      <span>{formatTimeAgo(review.created_at)}</span>
                     </div>
                   </div>
+                  <p className="text-gray-700">{review.comment}</p>
                 </div>
-                <p className="text-gray-700">{review.comment}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex gap-3 z-30">
-        <button className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium">
-          Call Now
-        </button>
-        <button className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium">
-          Get Directions
-        </button>
+        {/* For owners - show only rating summary */}
+        {isOwner && (
+          <div className="pb-8">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+              <div className="text-blue-700 font-bold text-lg mb-2">Your Business</div>
+              <div className="text-blue-600 text-sm mb-4">
+                Manage your business listing from your Profile
+              </div>
+              <div className="flex items-center justify-center gap-1 text-blue-700">
+                <Star size={18} className="text-yellow-500 fill-yellow-500" />
+                <span className="font-bold">{business.average_rating.toFixed(1)}</span>
+                <span className="text-gray-600">({business.review_count} reviews)</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

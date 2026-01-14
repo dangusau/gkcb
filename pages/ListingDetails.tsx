@@ -5,10 +5,12 @@ import { marketplaceService } from '../services/supabase/marketplace';
 import { messagingService } from '../services/supabase/messaging';
 import { MarketplaceListing } from '../types/marketplace';
 import { formatTimeAgo } from '../utils/formatters';
+import { useAuth } from '../contexts/AuthContext';
 
 const ListingDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -72,6 +74,8 @@ const ListingDetails: React.FC = () => {
     }
   };
 
+  const isOwner = listing?.seller_id === user?.id;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white p-4">
@@ -105,13 +109,16 @@ const ListingDetails: React.FC = () => {
           <ArrowLeft size={24} />
         </button>
         <div className="flex gap-2">
-          <button onClick={handleFavorite} className="p-2 bg-gray-100 rounded-full">
-            <Heart
-              size={20}
-              fill={listing.is_favorited ? 'red' : 'none'}
-              className={listing.is_favorited ? 'text-red-500' : 'text-gray-600'}
-            />
-          </button>
+          {/* Only show favorite button if not owner */}
+          {!isOwner && (
+            <button onClick={handleFavorite} className="p-2 bg-gray-100 rounded-full">
+              <Heart
+                size={20}
+                fill={listing.is_favorited ? 'red' : 'none'}
+                className={listing.is_favorited ? 'text-red-500' : 'text-gray-600'}
+              />
+            </button>
+          )}
           <button className="p-2 bg-gray-100 rounded-full">
             <Share2 size={20} />
           </button>
@@ -217,36 +224,48 @@ const ListingDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Contact Button - Fixed above BottomNav */}
-      <div className="fixed bottom-20 left-0 right-0 bg-white border-t p-4 flex gap-3 z-50 shadow-lg">
-        <button
-          onClick={handleContactSeller}
-          disabled={sending}
-          className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50"
-        >
-          {sending ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Sending...</span>
-            </>
-          ) : (
-            <>
-              <MessageCircle size={20} />
-              <span>Contact Seller</span>
-            </>
-          )}
-        </button>
-        <button 
-          onClick={handleFavorite} 
-          className="px-6 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200"
-        >
-          <Heart
-            size={20}
-            fill={listing.is_favorited ? 'red' : 'none'}
-            className={listing.is_favorited ? 'text-red-500' : 'text-gray-600'}
-          />
-        </button>
-      </div>
+      {/* Contact Button - Only show for non-owners */}
+      {!isOwner && (
+        <div className="fixed bottom-20 left-0 right-0 bg-white border-t p-4 flex gap-3 z-50 shadow-lg">
+          <button
+            onClick={handleContactSeller}
+            disabled={sending}
+            className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50"
+          >
+            {sending ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Sending...</span>
+              </>
+            ) : (
+              <>
+                <MessageCircle size={20} />
+                <span>Contact Seller</span>
+              </>
+            )}
+          </button>
+          <button 
+            onClick={handleFavorite} 
+            className="px-6 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200"
+          >
+            <Heart
+              size={20}
+              fill={listing.is_favorited ? 'red' : 'none'}
+              className={listing.is_favorited ? 'text-red-500' : 'text-gray-600'}
+            />
+          </button>
+        </div>
+      )}
+
+      {/* Owner badge - shows at bottom for owners */}
+      {isOwner && (
+        <div className="fixed bottom-20 left-0 right-0 bg-blue-50 border-t border-blue-200 p-4 flex gap-3 z-50 shadow-lg">
+          <div className="flex-1 text-center">
+            <div className="text-blue-700 font-bold text-lg">Your Listing</div>
+            <div className="text-blue-600 text-sm">Manage this listing from your Profile</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

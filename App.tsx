@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import MobileAppWrapper from './components/MobileAppWrapper';
 import Header from './components/Header';
@@ -26,7 +26,6 @@ import ChatWindow from './pages/ChatWindow';
 import NewConversation from './pages/NewConversation';
 
 function App() {
-  // Update user's last seen on app activity
   useEffect(() => {
     const handleActivity = () => {
       updateLastSeen();
@@ -51,11 +50,9 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           
-          {/* Protected Routes with Layout */}
           <Route element={<PrivateRoute />}>
             <Route path="/" element={
               <Layout>
@@ -77,7 +74,7 @@ function App() {
                 <Marketplace />
               </Layout>
             } />
-            <Route path="/listing/:id" element={
+            <Route path="/marketplace/:id" element={
               <Layout>
                 <ListingDetails />
               </Layout>
@@ -98,6 +95,11 @@ function App() {
               </Layout>
             } />
             <Route path="/profile" element={
+              <Layout>
+                <Profile />
+              </Layout>
+            } />
+            <Route path="/profile/:userId" element={
               <Layout>
                 <Profile />
               </Layout>
@@ -129,7 +131,6 @@ function App() {
             } />
           </Route>
           
-          {/* Redirect to home if route not found */}
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </AuthProvider>
@@ -137,7 +138,6 @@ function App() {
   );
 }
 
-// Layout component
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col">

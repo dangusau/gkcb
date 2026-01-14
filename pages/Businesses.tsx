@@ -23,8 +23,14 @@ const Businesses: React.FC = () => {
 
   if (loading && businesses.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="space-y-4">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+        {/* Header with gradient */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
+          <h1 className="text-2xl font-bold">GKBC Business Directory</h1>
+          <p className="text-blue-100 text-sm">Support local entrepreneurs • Grow your network</p>
+        </div>
+        
+        <div className="p-4 space-y-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="bg-white rounded-xl shadow p-4 animate-pulse">
               <div className="flex gap-3">
@@ -43,8 +49,14 @@ const Businesses: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white pb-20">
+      {/* Header with gradient */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4">
+        <h1 className="text-2xl font-bold">GKBC Business Directory</h1>
+        <p className="text-blue-100 text-sm">Support local entrepreneurs • Grow your network</p>
+      </div>
+
+      {/* Search and Filter Bar */}
       <div className="sticky top-0 bg-white border-b z-10 p-4">
         <div className="flex items-center gap-3">
           <div className="flex-1 relative">
@@ -62,7 +74,7 @@ const Businesses: React.FC = () => {
           </button>
           <button 
             onClick={() => setShowCreateModal(true)}
-            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600"
           >
             <Plus size={20} />
           </button>
@@ -73,19 +85,19 @@ const Businesses: React.FC = () => {
       <div className="flex border-b bg-white">
         <button
           onClick={() => setSelectedType('all')}
-          className={`flex-1 py-3 text-center ${selectedType === 'all' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          className={`flex-1 py-3 text-center font-medium ${selectedType === 'all' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
         >
           All
         </button>
         <button
           onClick={() => setSelectedType('products')}
-          className={`flex-1 py-3 text-center ${selectedType === 'products' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          className={`flex-1 py-3 text-center font-medium ${selectedType === 'products' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
         >
           Products
         </button>
         <button
           onClick={() => setSelectedType('services')}
-          className={`flex-1 py-3 text-center ${selectedType === 'services' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
+          className={`flex-1 py-3 text-center font-medium ${selectedType === 'services' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
         >
           Services
         </button>
@@ -96,9 +108,9 @@ const Businesses: React.FC = () => {
         <select
           value={selectedLocation}
           onChange={(e) => setSelectedLocation(e.target.value)}
-          className="w-full p-2 border rounded-lg"
+          className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
-          <option value="all">All Locations</option>
+          <option value="all">📍 All Locations</option>
           {LOCATION_AXIS.map(location => (
             <option key={location} value={location}>{location}</option>
           ))}
@@ -108,14 +120,14 @@ const Businesses: React.FC = () => {
       {/* Businesses List */}
       {businesses.length === 0 ? (
         <div className="p-8 text-center">
-          <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Store size={32} className="text-gray-400" />
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-200">
+            <Store size={32} className="text-blue-500" />
           </div>
           <h3 className="text-lg font-bold text-gray-900 mb-2">No businesses found</h3>
           <p className="text-gray-600 mb-6">Be the first to list a business in this area!</p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-medium shadow-lg"
           >
             List Your Business
           </button>
@@ -128,31 +140,37 @@ const Businesses: React.FC = () => {
               key={business.id} 
               className="block"
             >
-              <div className="bg-white rounded-xl shadow border overflow-hidden hover:shadow-md transition-shadow">
+              <div className="bg-white rounded-2xl shadow-xl border border-blue-100 overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="p-4">
                   <div className="flex gap-3">
-                    <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
-                      {business.logo_url && (
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl overflow-hidden flex-shrink-0 border border-blue-200">
+                      {business.logo_url ? (
                         <img src={business.logo_url} alt={business.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Store size={24} className="text-blue-500" />
+                        </div>
                       )}
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-gray-900">{business.name}</h3>
-                        <div className="flex items-center gap-1">
+                        <h3 className="font-bold text-gray-900 text-lg">{business.name}</h3>
+                        <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-50 to-orange-50 px-2 py-1 rounded-full">
                           <Star size={14} className="text-yellow-500 fill-yellow-500" />
-                          <span className="text-sm font-medium">{business.average_rating.toFixed(1)}</span>
+                          <span className="text-sm font-bold text-gray-800">{business.average_rating.toFixed(1)}</span>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">{business.description?.substring(0, 60)}...</p>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <MapPin size={12} />
-                        <span>{business.location_axis}</span>
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{business.description?.substring(0, 80)}...</p>
+                      <div className="flex items-center gap-3 text-sm text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <MapPin size={12} />
+                          <span className="font-medium">{business.location_axis}</span>
+                        </div>
                         <span className="text-gray-300">•</span>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           business.business_type === 'products' 
-                            ? 'bg-blue-100 text-blue-700' 
-                            : 'bg-green-100 text-green-700'
+                            ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                            : 'bg-green-100 text-green-700 border border-green-200'
                         }`}>
                           {business.business_type}
                         </span>
@@ -169,7 +187,7 @@ const Businesses: React.FC = () => {
       {/* Create Button */}
       <button 
         onClick={() => setShowCreateModal(true)}
-        className="fixed bottom-24 right-4 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 z-30"
+        className="fixed bottom-24 right-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-lg hover:from-blue-700 hover:to-purple-700 z-30"
       >
         <Plus size={24} />
       </button>
