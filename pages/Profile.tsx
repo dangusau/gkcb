@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Edit3, MessageCircle, UserPlus, UserMinus, Check, 
   MoreVertical, Camera, Building, Briefcase, Calendar,
-  ChevronLeft, Trash2, Pencil
+  ChevronLeft, Upload, X
 } from 'lucide-react';
 import { profileService } from '../services/supabase/profile';
 import { formatTimeAgo } from '../utils/formatters';
@@ -21,12 +21,15 @@ const Profile: React.FC = () => {
   const [jobs, setJobs] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Modals
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [actionType, setActionType] = useState<'edit' | 'delete'>('edit');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingHeader, setUploadingHeader] = useState(false);
+  
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const headerInputRef = useRef<HTMLInputElement>(null);
 
   const isOwner = profileData?.relationship?.is_owner;
   const isConnected = profileData?.relationship?.is_connected;
@@ -100,26 +103,26 @@ const Profile: React.FC = () => {
   };
 
   const handleEditProfile = () => {
-    setSelectedItem({ type: 'profile', ...profileData.profile });
+    setSelectedItem({ ...profileData.profile, itemType: 'profile' });
     setActionType('edit');
     setShowEditModal(true);
   };
 
   const handleEditItem = (item: any, type: string) => {
-    setSelectedItem({ ...item, type });
+    setSelectedItem({ ...item, itemType: type });
     setActionType('edit');
     setShowEditModal(true);
   };
 
   const handleDeleteItem = (item: any, type: string) => {
-    setSelectedItem({ ...item, type });
+    setSelectedItem({ ...item, itemType: type });
     setActionType('delete');
     setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
     try {
-      switch (selectedItem.type) {
+      switch (selectedItem.itemType) {
         case 'post':
           await profileService.deletePost(selectedItem.id);
           setPosts(posts.filter(p => p.id !== selectedItem.id));
@@ -141,55 +144,201 @@ const Profile: React.FC = () => {
           setEvents(events.filter(e => e.id !== selectedItem.id));
           break;
       }
-    } catch (error) {
-      console.error('Error deleting:', error);
-      alert('Failed to delete item');
-    } finally {
       setShowDeleteModal(false);
       setSelectedItem(null);
+    } catch (error) {
+      console.error('Error deleting:', error);
     }
   };
 
-  const handleSave = async (updatedData: any) => {
+  const handleSaveEdit = async (updatedData: any) => {
+    console.log('Profile: handleSaveEdit called');
+    console.log('Updated data:', updatedData);
+    console.log('Selected item:', selectedItem);
+    
     try {
-      if (selectedItem?.type === 'profile') {
-        await profileService.updateProfile(updatedData);
-        loadProfileData(); // Refresh profile
-      } else if (selectedItem?.type === 'listing') {
-        await profileService.updateListing(selectedItem.id, updatedData);
-        setListings(prev => prev.map(item => 
-          item.id === selectedItem.id ? { ...item, ...updatedData } : item
-        ));
-      } else if (selectedItem?.type === 'business') {
-        await profileService.updateBusiness(selectedItem.id, updatedData);
-        setBusinesses(prev => prev.map(item => 
-          item.id === selectedItem.id ? { ...item, ...updatedData } : item
-        ));
-      } else if (selectedItem?.type === 'job') {
-        await profileService.updateJob(selectedItem.id, updatedData);
-        setJobs(prev => prev.map(item => 
-          item.id === selectedItem.id ? { ...item, ...updatedData } : item
-        ));
-      } else if (selectedItem?.type === 'event') {
-        await profileService.updateEvent(selectedItem.id, updatedData);
-        setEvents(prev => prev.map(item => 
-          item.id === selectedItem.id ? { ...item, ...updatedData } : item
-        ));
+      // Determine what type of item we're editing
+      const itemType = selectedItem?.itemType;
+      
+      if (itemType === 'profile') {
+        console.log('Updating profile data...');
+        
+        // Use the new updateProfileData function (text only)
+        await profileService.updateProfileData(updatedData);
+        
+        // Reload profile data
+        await loadProfileData();
+        console.log('Profile updated successfully');
+        
+      } else if (itemType === 'post') {
+        await profileService.updatePost(selectedItem.id, {
+          content: updatedData.content,
+          privacy: updatedData.privacy || 'public'
+        });
+        if (profileData?.profile?.id) {
+          const postsData = await profileService.getUserPosts(profileData.profile.id, 'current');
+          setPosts(postsData);
+        }
+      } else if (itemType === 'listing') {
+        await profileService.updateListing(selectedItem.id, {
+          title: updatedData.title,
+          description: updatedData.description || '',
+          price: updatedData.price,
+          category: updatedData.category || '',
+          condition: updatedData.condition || 'used',
+          location: updatedData.location || ''
+        });
+        if (profileData?.profile?.id) {
+          const listingsData = await profileService.getUserListings(profileData.profile.id, 'current');
+          setListings(listingsData);
+        }
+      } else if (itemType === 'business') {
+        await profileService.updateBusiness(selectedItem.id, {
+          name: updatedData.name,
+          description: updatedData.description || '',
+          business_type: updatedData.business_type,
+          category: updatedData.category,
+          location_axis: updatedData.location_axis,
+          address: updatedData.address || '',
+          email: updatedData.email || '',
+          phone: updatedData.phone || '',
+          website: updatedData.website || ''
+        });
+        if (profileData?.profile?.id) {
+          const businessesData = await profileService.getUserBusinesses(profileData.profile.id, 'current');
+          setBusinesses(businessesData);
+        }
+      } else if (itemType === 'job') {
+        await profileService.updateJob(selectedItem.id, {
+          title: updatedData.title,
+          description: updatedData.description || '',
+          salary: updatedData.salary || '',
+          job_type: updatedData.job_type || 'full-time',
+          location: updatedData.location || ''
+        });
+        if (profileData?.profile?.id) {
+          const jobsData = await profileService.getUserJobs(profileData.profile.id, 'current');
+          setJobs(jobsData);
+        }
+      } else if (itemType === 'event') {
+        await profileService.updateEvent(selectedItem.id, {
+          title: updatedData.title,
+          description: updatedData.description || '',
+          event_date: updatedData.event_date,
+          location: updatedData.location || ''
+        });
+        if (profileData?.profile?.id) {
+          const eventsData = await profileService.getUserEvents(profileData.profile.id, 'current');
+          setEvents(eventsData);
+        }
       }
-    } catch (error) {
-      console.error('Error updating:', error);
-      alert('Failed to update. Please try again.');
+      
+      setShowEditModal(false);
+      setSelectedItem(null);
+      
+    } catch (error: any) {
+      console.error('Error saving:', error);
       throw error;
     }
   };
 
-  const handleImageUpload = async (file: File, type: 'avatar' | 'header') => {
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !profileData?.profile?.id) return;
+
     try {
-      await profileService.uploadProfileImage(file, type);
-      loadProfileData(); // Refresh profile with new images
+      setUploadingAvatar(true);
+      
+      // Use the dedicated avatar update function
+      await profileService.updateProfileAvatar(file);
+      
+      // Reload profile data
+      await loadProfileData();
+      
     } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Failed to upload image');
+      console.error('Error uploading avatar:', error);
+      alert('Failed to upload profile picture. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleHeaderUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !profileData?.profile?.id) return;
+
+    try {
+      setUploadingHeader(true);
+      
+      // Use the dedicated header update function
+      await profileService.updateProfileHeader(file);
+      
+      // Reload profile data
+      await loadProfileData();
+      
+    } catch (error) {
+      console.error('Error uploading header:', error);
+      alert('Failed to upload cover photo. Please try again.');
+    } finally {
+      setUploadingHeader(false);
+      if (headerInputRef.current) {
+        headerInputRef.current.value = '';
+      }
+    }
+  };
+
+  const triggerAvatarUpload = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const triggerHeaderUpload = () => {
+    headerInputRef.current?.click();
+  };
+
+  const removeAvatar = async () => {
+    if (!profileData?.profile?.id) return;
+
+    if (!window.confirm('Remove profile picture?')) return;
+
+    try {
+      setUploadingAvatar(true);
+      
+      // Use the dedicated avatar removal function
+      await profileService.removeProfileAvatar();
+      
+      // Reload profile data
+      await loadProfileData();
+      
+    } catch (error) {
+      console.error('Error removing avatar:', error);
+      alert('Failed to remove profile picture. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const removeHeader = async () => {
+    if (!profileData?.profile?.id) return;
+
+    if (!window.confirm('Remove cover photo?')) return;
+
+    try {
+      setUploadingHeader(true);
+      
+      // Use the dedicated header removal function
+      await profileService.removeProfileHeader();
+      
+      // Reload profile data
+      await loadProfileData();
+      
+    } catch (error) {
+      console.error('Error removing header:', error);
+      alert('Failed to remove cover photo. Please try again.');
+    } finally {
+      setUploadingHeader(false);
     }
   };
 
@@ -214,6 +363,22 @@ const Profile: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Hidden file inputs for image uploads */}
+      <input
+        type="file"
+        ref={avatarInputRef}
+        onChange={handleAvatarUpload}
+        accept="image/*"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={headerInputRef}
+        onChange={handleHeaderUpload}
+        accept="image/*"
+        className="hidden"
+      />
+
       <div className="sticky top-0 bg-white/80 backdrop-blur-sm border-b z-20">
         <div className="flex items-center justify-between p-4">
           <button onClick={() => navigate(-1)} className="p-2">
@@ -227,7 +392,6 @@ const Profile: React.FC = () => {
       </div>
 
       <div className="relative">
-        {/* Header Image with Upload */}
         <div className="h-48 bg-gradient-to-r from-blue-500 to-purple-500 relative">
           {profile.header_image_url ? (
             <img
@@ -236,24 +400,35 @@ const Profile: React.FC = () => {
               className="w-full h-full object-cover"
             />
           ) : null}
+          
           {isOwner && (
-            <label className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg cursor-pointer hover:bg-white">
-              <Camera size={20} />
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    handleImageUpload(e.target.files[0], 'header');
-                  }
-                }}
-              />
-            </label>
+            <div className="absolute bottom-4 right-4 flex gap-2">
+              {profile.header_image_url && (
+                <button 
+                  onClick={removeHeader}
+                  disabled={uploadingHeader}
+                  className="bg-red-500/90 backdrop-blur-sm p-2 rounded-full shadow-lg text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                  title="Remove cover photo"
+                >
+                  <X size={20} />
+                </button>
+              )}
+              <button 
+                onClick={triggerHeaderUpload}
+                disabled={uploadingHeader}
+                className="bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg hover:bg-white disabled:opacity-50 transition-colors"
+                title="Change cover photo"
+              >
+                {uploadingHeader ? (
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Camera size={20} />
+                )}
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Avatar with Upload */}
         <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
           <div className="relative">
             <div className="w-32 h-32 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full border-4 border-white shadow-2xl overflow-hidden">
@@ -269,20 +444,32 @@ const Profile: React.FC = () => {
                 </div>
               )}
             </div>
+            
             {isOwner && (
-              <label className="absolute bottom-2 right-2 bg-blue-600 text-white p-2 rounded-full shadow-lg cursor-pointer hover:bg-blue-700">
-                <Camera size={16} />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleImageUpload(e.target.files[0], 'avatar');
-                    }
-                  }}
-                />
-              </label>
+              <div className="absolute -bottom-2 -right-2 flex gap-1">
+                {profile.avatar_url && (
+                  <button 
+                    onClick={removeAvatar}
+                    disabled={uploadingAvatar}
+                    className="w-8 h-8 bg-red-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-red-600 disabled:opacity-50 transition-colors"
+                    title="Remove profile picture"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                <button 
+                  onClick={triggerAvatarUpload}
+                  disabled={uploadingAvatar}
+                  className="w-8 h-8 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  title="Change profile picture"
+                >
+                  {uploadingAvatar ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Upload size={14} />
+                  )}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -339,20 +526,20 @@ const Profile: React.FC = () => {
           {isOwner ? (
             <button 
               onClick={handleEditProfile}
-              className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:from-blue-700 hover:to-blue-800"
+              className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all"
             >
               <Edit3 size={20} />
               Edit Profile
             </button>
           ) : isConnected ? (
             <>
-              <button className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700">
+              <button className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
                 <MessageCircle size={20} />
                 Message
               </button>
               <button
                 onClick={handleConnect}
-                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200"
+                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
               >
                 <UserMinus size={20} />
               </button>
@@ -360,7 +547,7 @@ const Profile: React.FC = () => {
           ) : connectionStatus === 'pending' ? (
             <button
               onClick={handleConnect}
-              className="flex-1 py-3 bg-yellow-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-yellow-600"
+              className="flex-1 py-3 bg-yellow-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-yellow-600 transition-colors"
             >
               <Check size={20} />
               Pending
@@ -368,7 +555,7 @@ const Profile: React.FC = () => {
           ) : (
             <button
               onClick={handleConnect}
-              className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:from-green-600 hover:to-emerald-700"
+              className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:from-green-600 hover:to-emerald-700 transition-all"
             >
               <UserPlus size={20} />
               Connect
@@ -383,10 +570,10 @@ const Profile: React.FC = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-4 text-sm font-medium capitalize ${
+              className={`flex-1 py-4 text-sm font-medium capitalize transition-colors ${
                 activeTab === tab
                   ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-500'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {tab}
@@ -396,69 +583,71 @@ const Profile: React.FC = () => {
 
         <div className="p-4">
           {activeTab === 'posts' && (
-            <PostGrid posts={posts} isOwner={isOwner} onDelete={handleDeleteItem} />
+            <PostGrid 
+              posts={posts} 
+              isOwner={isOwner} 
+              onEdit={(post) => handleEditItem(post, 'post')}
+              onDelete={(post) => handleDeleteItem(post, 'post')}
+            />
           )}
           {activeTab === 'marketplace' && (
             <ListingGrid 
               listings={listings} 
               isOwner={isOwner} 
-              onEdit={handleEditItem}
-              onDelete={handleDeleteItem}
+              onEdit={(listing) => handleEditItem(listing, 'listing')}
+              onDelete={(listing) => handleDeleteItem(listing, 'listing')}
             />
           )}
           {activeTab === 'businesses' && (
             <BusinessGrid 
               businesses={businesses} 
               isOwner={isOwner} 
-              onEdit={handleEditItem}
-              onDelete={handleDeleteItem}
+              onEdit={(business) => handleEditItem(business, 'business')}
+              onDelete={(business) => handleDeleteItem(business, 'business')}
             />
           )}
           {activeTab === 'jobs' && (
             <JobGrid 
               jobs={jobs} 
               isOwner={isOwner} 
-              onEdit={handleEditItem}
-              onDelete={handleDeleteItem}
+              onEdit={(job) => handleEditItem(job, 'job')}
+              onDelete={(job) => handleDeleteItem(job, 'job')}
             />
           )}
           {activeTab === 'events' && (
             <EventGrid 
               events={events} 
               isOwner={isOwner} 
-              onEdit={handleEditItem}
-              onDelete={handleDeleteItem}
+              onEdit={(event) => handleEditItem(event, 'event')}
+              onDelete={(event) => handleDeleteItem(event, 'event')}
             />
           )}
         </div>
       </div>
 
-      {/* Modals */}
-      {showEditModal && (
-        <EditModal
-          type={selectedItem?.type}
-          data={selectedItem}
-          isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedItem(null);
-          }}
-          onSave={handleSave}
-        />
-      )}
+      {/* Edit Modal */}
+      <EditModal
+        type={selectedItem?.itemType || 'profile'}
+        data={selectedItem}
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedItem(null);
+        }}
+        onSave={handleSaveEdit}
+      />
 
-      {showDeleteModal && (
-        <DeleteModal
-          type={selectedItem?.type}
-          name={selectedItem?.title || selectedItem?.name || selectedItem?.content?.substring(0, 30)}
-          isOpen={showDeleteModal}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setSelectedItem(null);
-          }}
-          onConfirm={confirmDelete}
-        />
-      )}
+      {/* Delete Modal */}
+      <DeleteModal
+        type={selectedItem?.itemType}
+        name={selectedItem?.title || selectedItem?.name || selectedItem?.first_name}
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setSelectedItem(null);
+        }}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 };
@@ -488,13 +677,14 @@ const StatCard = ({ icon, count, label, active, onClick }: any) => (
   </button>
 );
 
-const PostGrid = ({ posts, isOwner, onDelete }: any) => {
+const PostGrid = ({ posts, isOwner, onEdit, onDelete }: any) => {
   if (posts.length === 0) {
     return (
       <EmptyState
         icon="📝"
         title="No Posts"
         description={isOwner ? "You haven't created any posts yet." : "No posts to show."}
+        action={isOwner ? "Create Post" : null}
       />
     );
   }
@@ -511,12 +701,24 @@ const PostGrid = ({ posts, isOwner, onDelete }: any) => {
             />
           )}
           {isOwner && (
-            <button 
-              onClick={() => onDelete(post, 'post')}
-              className="absolute top-2 right-2 w-6 h-6 bg-black/70 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              ×
-            </button>
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => onEdit(post)}
+                  className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600"
+                  title="Edit post"
+                >
+                  <Edit3 size={14} />
+                </button>
+                <button 
+                  onClick={() => onDelete(post)}
+                  className="w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                  title="Delete post"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
           )}
         </div>
       ))}
@@ -531,6 +733,7 @@ const ListingGrid = ({ listings, isOwner, onEdit, onDelete }: any) => {
         icon="🛒"
         title="No Listings"
         description={isOwner ? "You haven't created any listings yet." : "No listings to show."}
+        action={isOwner ? "Create Listing" : null}
       />
     );
   }
@@ -538,7 +741,7 @@ const ListingGrid = ({ listings, isOwner, onEdit, onDelete }: any) => {
   return (
     <div className="space-y-4">
       {listings.map((listing: any) => (
-        <div key={listing.id} className="bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
+        <div key={listing.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
           <div className="flex gap-4">
             <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
               {listing.images?.[0] && (
@@ -550,31 +753,23 @@ const ListingGrid = ({ listings, isOwner, onEdit, onDelete }: any) => {
               )}
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-gray-900">{listing.title}</h3>
+              <h3 className="font-bold">{listing.title}</h3>
               <p className="text-blue-600 font-bold">₦{listing.price?.toLocaleString()}</p>
               <p className="text-sm text-gray-500">{listing.location}</p>
-              <div className="flex gap-2 mt-2">
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
-                  {listing.category}
-                </span>
-                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                  {listing.condition}
-                </span>
-              </div>
             </div>
             {isOwner && (
               <div className="flex flex-col gap-2">
                 <button 
-                  onClick={() => onEdit(listing, 'listing')}
-                  className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                  onClick={() => onEdit(listing)}
+                  className="text-blue-500 hover:text-blue-700 text-sm transition-colors"
                 >
-                  <Pencil size={18} />
+                  Edit
                 </button>
                 <button 
-                  onClick={() => onDelete(listing, 'listing')}
-                  className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                  onClick={() => onDelete(listing)}
+                  className="text-red-500 hover:text-red-700 text-sm transition-colors"
                 >
-                  <Trash2 size={18} />
+                  Delete
                 </button>
               </div>
             )}
@@ -592,6 +787,7 @@ const BusinessGrid = ({ businesses, isOwner, onEdit, onDelete }: any) => {
         icon={<Building size={48} className="text-gray-400" />}
         title="No Businesses"
         description={isOwner ? "You haven't added any businesses yet." : "No businesses to show."}
+        action={isOwner ? "Add Business" : null}
       />
     );
   }
@@ -599,7 +795,7 @@ const BusinessGrid = ({ businesses, isOwner, onEdit, onDelete }: any) => {
   return (
     <div className="space-y-4">
       {businesses.map((business: any) => (
-        <div key={business.id} className="bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
+        <div key={business.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
           <div className="flex gap-4">
             <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
               {business.logo_url && (
@@ -611,29 +807,23 @@ const BusinessGrid = ({ businesses, isOwner, onEdit, onDelete }: any) => {
               )}
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-gray-900">{business.name}</h3>
+              <h3 className="font-bold">{business.name}</h3>
               <p className="text-sm text-gray-600">{business.business_type} • {business.category}</p>
               <p className="text-sm text-gray-500">{business.location_axis}</p>
-              {business.average_rating > 0 && (
-                <div className="flex items-center gap-1 mt-2">
-                  <span className="text-yellow-500">★</span>
-                  <span className="text-sm text-gray-700">{business.average_rating.toFixed(1)}</span>
-                </div>
-              )}
             </div>
             {isOwner && (
               <div className="flex flex-col gap-2">
                 <button 
-                  onClick={() => onEdit(business, 'business')}
-                  className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                  onClick={() => onEdit(business)}
+                  className="text-blue-500 hover:text-blue-700 text-sm transition-colors"
                 >
-                  <Pencil size={18} />
+                  Edit
                 </button>
                 <button 
-                  onClick={() => onDelete(business, 'business')}
-                  className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                  onClick={() => onDelete(business)}
+                  className="text-red-500 hover:text-red-700 text-sm transition-colors"
                 >
-                  <Trash2 size={18} />
+                  Delete
                 </button>
               </div>
             )}
@@ -651,6 +841,7 @@ const JobGrid = ({ jobs, isOwner, onEdit, onDelete }: any) => {
         icon={<Briefcase size={48} className="text-gray-400" />}
         title="No Jobs"
         description={isOwner ? "You haven't posted any jobs yet." : "No jobs to show."}
+        action={isOwner ? "Post Job" : null}
       />
     );
   }
@@ -658,33 +849,27 @@ const JobGrid = ({ jobs, isOwner, onEdit, onDelete }: any) => {
   return (
     <div className="space-y-4">
       {jobs.map((job: any) => (
-        <div key={job.id} className="bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="font-bold text-gray-900">{job.title}</h3>
-              <p className="text-blue-600 font-bold">{job.salary}</p>
-              <p className="text-sm text-gray-600">{job.job_type} • {job.location}</p>
-              {job.description && (
-                <p className="text-sm text-gray-500 mt-2">{job.description.substring(0, 100)}...</p>
-              )}
+        <div key={job.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+          <h3 className="font-bold">{job.title}</h3>
+          <p className="text-blue-600 font-bold">{job.salary}</p>
+          <p className="text-sm text-gray-600">{job.job_type} • {job.location}</p>
+          <p className="text-sm text-gray-500 mt-2">{job.description?.substring(0, 100)}...</p>
+          {isOwner && (
+            <div className="mt-3 flex gap-4 justify-end">
+              <button 
+                onClick={() => onEdit(job)}
+                className="text-blue-500 hover:text-blue-700 text-sm transition-colors"
+              >
+                Edit
+              </button>
+              <button 
+                onClick={() => onDelete(job)}
+                className="text-red-500 hover:text-red-700 text-sm transition-colors"
+              >
+                Delete
+              </button>
             </div>
-            {isOwner && (
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => onEdit(job, 'job')}
-                  className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                >
-                  <Pencil size={18} />
-                </button>
-                <button 
-                  onClick={() => onDelete(job, 'job')}
-                  className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       ))}
     </div>
@@ -698,6 +883,7 @@ const EventGrid = ({ events, isOwner, onEdit, onDelete }: any) => {
         icon={<Calendar size={48} className="text-gray-400" />}
         title="No Events"
         description={isOwner ? "You haven't created any events yet." : "No events to show."}
+        action={isOwner ? "Create Event" : null}
       />
     );
   }
@@ -705,33 +891,27 @@ const EventGrid = ({ events, isOwner, onEdit, onDelete }: any) => {
   return (
     <div className="space-y-4">
       {events.map((event: any) => (
-        <div key={event.id} className="bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="font-bold text-gray-900">{event.title}</h3>
-              <p className="text-sm text-gray-600">
-                {new Date(event.event_date).toLocaleDateString()} • {event.location}
-              </p>
-              {event.description && (
-                <p className="text-sm text-gray-500 mt-2">{event.description.substring(0, 100)}...</p>
-              )}
-              <div className="flex items-center gap-4 mt-3">
-                <span className="text-sm text-gray-500">{event.rsvp_count} RSVPs</span>
-              </div>
-            </div>
+        <div key={event.id} className="bg-white rounded-xl border p-4 hover:shadow-sm transition-shadow">
+          <h3 className="font-bold">{event.title}</h3>
+          <p className="text-sm text-gray-600">
+            {new Date(event.event_date).toLocaleDateString()} • {event.location}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">{event.description?.substring(0, 100)}...</p>
+          <div className="flex justify-between items-center mt-3">
+            <span className="text-sm text-gray-500">{event.rsvp_count} RSVPs</span>
             {isOwner && (
-              <div className="flex gap-2">
+              <div className="flex gap-4">
                 <button 
-                  onClick={() => onEdit(event, 'event')}
-                  className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                  onClick={() => onEdit(event)}
+                  className="text-blue-500 hover:text-blue-700 text-sm transition-colors"
                 >
-                  <Pencil size={18} />
+                  Edit
                 </button>
                 <button 
-                  onClick={() => onDelete(event, 'event')}
-                  className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                  onClick={() => onDelete(event)}
+                  className="text-red-500 hover:text-red-700 text-sm transition-colors"
                 >
-                  <Trash2 size={18} />
+                  Delete
                 </button>
               </div>
             )}
@@ -742,11 +922,16 @@ const EventGrid = ({ events, isOwner, onEdit, onDelete }: any) => {
   );
 };
 
-const EmptyState = ({ icon, title, description }: any) => (
+const EmptyState = ({ icon, title, description, action }: any) => (
   <div className="text-center py-12">
     <div className="text-4xl mb-4">{icon}</div>
     <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-    <p className="text-gray-600">{description}</p>
+    <p className="text-gray-600 mb-6">{description}</p>
+    {action && (
+      <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
+        {action}
+      </button>
+    )}
   </div>
 );
 

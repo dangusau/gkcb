@@ -1,6 +1,7 @@
 import { supabase } from './client';
 
 export const profileService = {
+  // Existing getter methods (unchanged)
   async getProfileData(profileUserId: string, viewerId: string) {
     const userId = profileUserId === 'current' ? (await supabase.auth.getUser()).data.user?.id : profileUserId;
     const viewer = viewerId === 'current' ? (await supabase.auth.getUser()).data.user?.id : viewerId;
@@ -83,57 +84,216 @@ export const profileService = {
     return data;
   },
 
-  async updateProfile(profileData: any) {
-    const { error } = await supabase.rpc('update_user_profile', {
-      p_first_name: profileData.first_name,
-      p_last_name: profileData.last_name,
-      p_bio: profileData.bio,
-      p_phone: profileData.phone,
-      p_address: profileData.address,
-      p_business_name: profileData.business_name,
-      p_business_type: profileData.business_type,
-      p_market_area: profileData.market_area
-    });
+  // NEW: Update profile data ONLY (no files)
+  async updateProfileData(profileData: any) {
+    console.log('updateProfileData called with:', profileData);
 
-    if (error) throw error;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    // Prepare update data (excluding avatar and header)
+    const updateData: any = {
+      first_name: profileData.first_name,
+      last_name: profileData.last_name,
+      bio: profileData.bio || null,
+      phone: profileData.phone || null,
+      address: profileData.address || null,
+      business_name: profileData.business_name || null,
+      business_type: profileData.business_type || null,
+      market_area: profileData.market_area || null,
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('Updating profile with:', updateData);
+
+    // Update profile in database
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database update error:', error);
+      throw error;
+    }
+
+    console.log('Profile updated successfully:', data);
+    return { success: true, data };
   },
 
-  async uploadProfileImage(file: File, type: 'avatar' | 'header') {
+  // NEW: Update profile avatar ONLY
+  async updateProfileAvatar(file: File) {
+    console.log('updateProfileAvatar called with file:', file.name);
+    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
     
+    // 1. Upload the file to storage
     const fileExt = file.name.split('.').pop();
-    const fileName = `${type}_${Date.now()}.${fileExt}`;
-    const filePath = `profiles/${user.id}/${fileName}`;
+    const fileName = `avatar_${user.id}_${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
 
-    // Upload to storage
+    console.log(`Uploading avatar to: ${filePath}`);
+
     const { error: uploadError } = await supabase.storage
       .from('profile-images')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        upsert: true,
+        cacheControl: '3600'
+      });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      throw uploadError;
+    }
 
-    // Get public URL
+    // 2. Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('profile-images')
       .getPublicUrl(filePath);
 
-    // Update profile
-    const { error: updateError } = await supabase
+    console.log('Avatar uploaded to:', publicUrl);
+
+    // 3. Update profile with new avatar URL
+    const { data, error } = await supabase
       .from('profiles')
       .update({ 
-        [type === 'avatar' ? 'avatar_url' : 'header_image_url']: publicUrl 
+        avatar_url: publicUrl,
+        updated_at: new Date().toISOString()
       })
-      .eq('id', user.id);
+      .eq('id', user.id)
+      .select()
+      .single();
 
-    if (updateError) throw updateError;
+    if (error) {
+      console.error('Database update error:', error);
+      throw error;
+    }
 
-    return publicUrl;
+    console.log('Avatar updated successfully');
+    return { success: true, data };
   },
 
+  // NEW: Update profile header ONLY
+  async updateProfileHeader(file: File) {
+    console.log('updateProfileHeader called with file:', file.name);
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+    
+    // 1. Upload the file to storage
+    const fileExt = file.name.split('.').pop();
+    const fileName = `header_${user.id}_${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+
+    console.log(`Uploading header to: ${filePath}`);
+
+    const { error: uploadError } = await supabase.storage
+      .from('profile-images')
+      .upload(filePath, file, {
+        upsert: true,
+        cacheControl: '3600'
+      });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      throw uploadError;
+    }
+
+    // 2. Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('profile-images')
+      .getPublicUrl(filePath);
+
+    console.log('Header uploaded to:', publicUrl);
+
+    // 3. Update profile with new header URL
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ 
+        header_image_url: publicUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database update error:', error);
+      throw error;
+    }
+
+    console.log('Header updated successfully');
+    return { success: true, data };
+  },
+
+  // NEW: Remove profile avatar
+  async removeProfileAvatar() {
+    console.log('removeProfileAvatar called');
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ 
+        avatar_url: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database update error:', error);
+      throw error;
+    }
+
+    console.log('Avatar removed successfully');
+    return { success: true, data };
+  },
+
+  // NEW: Remove profile header
+  async removeProfileHeader() {
+    console.log('removeProfileHeader called');
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ 
+        header_image_url: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database update error:', error);
+      throw error;
+    }
+
+    console.log('Header removed successfully');
+    return { success: true, data };
+  },
+
+  // Delete/Update functions for other items (unchanged)
   async deletePost(postId: string) {
     const { error } = await supabase.rpc('delete_post', {
       p_post_id: postId
+    });
+    if (error) throw error;
+  },
+
+  async updatePost(postId: string, data: any) {
+    const { error } = await supabase.rpc('update_post', {
+      p_post_id: postId,
+      p_content: data.content,
+      p_privacy: data.privacy || 'public'
     });
     if (error) throw error;
   },
