@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface Props {
   type: string;
   data: any;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (updatedData: any, avatarFile?: File, headerFile?: File) => Promise<void>;
+  onSave: (updatedData: any) => Promise<void>;
 }
 
 const MARKET_AREAS = [
@@ -40,6 +40,7 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
   const [formData, setFormData] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (data) {
@@ -94,33 +95,107 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
     }
   }, [data, type]);
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (type === 'profile') {
+      if (!formData.first_name?.trim()) {
+        newErrors.first_name = 'First name is required';
+      }
+      if (!formData.business_type) {
+        newErrors.business_type = 'Business type is required';
+      }
+    } else if (type === 'listing') {
+      if (!formData.title?.trim()) {
+        newErrors.title = 'Title is required';
+      }
+      if (!formData.price || parseFloat(formData.price) <= 0) {
+        newErrors.price = 'Valid price is required';
+      }
+      if (!formData.category) {
+        newErrors.category = 'Category is required';
+      }
+    } else if (type === 'business') {
+      if (!formData.name?.trim()) {
+        newErrors.name = 'Business name is required';
+      }
+      if (!formData.business_type) {
+        newErrors.business_type = 'Business type is required';
+      }
+      if (!formData.category?.trim()) {
+        newErrors.category = 'Category is required';
+      }
+    } else if (type === 'job') {
+      if (!formData.title?.trim()) {
+        newErrors.title = 'Job title is required';
+      }
+    } else if (type === 'event') {
+      if (!formData.title?.trim()) {
+        newErrors.title = 'Event title is required';
+      }
+      if (!formData.event_date) {
+        newErrors.event_date = 'Event date is required';
+      }
+    }
+
+    return newErrors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log(`[EditModal] Form submitted for type: ${type}`);
+    
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     setLoading(true);
     setErrors({});
+    setSuccess(false);
 
     try {
-      // Transform data based on function parameters
       let transformedData = { ...formData };
       
       if (type === 'event') {
-        // Format datetime-local to ISO string
         if (transformedData.event_date) {
           transformedData.event_date = new Date(transformedData.event_date).toISOString();
         }
       }
       
       if (type === 'listing') {
-        // Ensure price is numeric
         if (transformedData.price) {
           transformedData.price = parseFloat(transformedData.price);
         }
       }
 
+      console.log(`[EditModal] Calling onSave with data:`, transformedData);
       await onSave(transformedData);
-    } catch (error) {
-      console.error('Save error:', error);
-      setErrors({ general: 'Failed to save. Please try again.' });
+      console.log(`[EditModal] onSave completed successfully`);
+      
+      setSuccess(true);
+      
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+      
+    } catch (error: any) {
+      console.error(`[EditModal] Save error:`, error);
+      
+      if (error.code === '23514') {
+        setErrors({ 
+          general: 'Invalid business type. Please select either "Products" or "Services".' 
+        });
+      } else if (error.message?.includes('network')) {
+        setErrors({ 
+          general: 'Network error. Please check your connection and try again.' 
+        });
+      } else {
+        setErrors({ 
+          general: error.message || 'Failed to save changes. Please try again.' 
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -129,6 +204,22 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
+    
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    
+    if (errors.general) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.general;
+        return newErrors;
+      });
+    }
   };
 
   if (!isOpen) return null;
@@ -137,7 +228,7 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
     switch (type) {
       case 'profile':
         return (
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <label className="block text-sm font-medium mb-2">First Name *</label>
               <input
@@ -145,9 +236,15 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="first_name"
                 value={formData.first_name || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
-                required
+                className={`w-full p-3 border rounded-lg ${errors.first_name ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading}
               />
+              {errors.first_name && (
+                <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                  <AlertCircle size={14} />
+                  <span>{errors.first_name}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -157,7 +254,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="last_name"
                 value={formData.last_name || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
+                disabled={loading}
               />
             </div>
 
@@ -167,9 +265,10 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="bio"
                 value={formData.bio || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg h-32"
+                className="w-full p-3 border border-gray-300 rounded-lg h-32"
                 maxLength={500}
                 placeholder="Tell us about yourself..."
+                disabled={loading}
               />
               <div className="text-right text-sm text-gray-500">
                 {formData.bio?.length || 0}/500
@@ -183,8 +282,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="phone"
                 value={formData.phone || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
                 placeholder="+234 800 000 0000"
+                disabled={loading}
               />
             </div>
 
@@ -195,8 +295,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="address"
                 value={formData.address || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
                 placeholder="City, State"
+                disabled={loading}
               />
             </div>
 
@@ -207,8 +308,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="business_name"
                 value={formData.business_name || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
                 placeholder="Your business name"
+                disabled={loading}
               />
             </div>
 
@@ -218,13 +320,19 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="business_type"
                 value={formData.business_type || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
-                required
+                className={`w-full p-3 border rounded-lg ${errors.business_type ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading}
               >
                 <option value="">Select type</option>
                 <option value="products">Products</option>
                 <option value="services">Services</option>
               </select>
+              {errors.business_type && (
+                <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                  <AlertCircle size={14} />
+                  <span>{errors.business_type}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -233,7 +341,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="market_area"
                 value={formData.market_area || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
+                disabled={loading}
               >
                 <option value="">Select market area</option>
                 {MARKET_AREAS.map(area => (
@@ -241,12 +350,22 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 ))}
               </select>
             </div>
-          </div>
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </form>
         );
 
       case 'listing':
         return (
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <label className="block text-sm font-medium mb-2">Title *</label>
               <input
@@ -254,9 +373,15 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="title"
                 value={formData.title || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
-                required
+                className={`w-full p-3 border rounded-lg ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading}
               />
+              {errors.title && (
+                <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                  <AlertCircle size={14} />
+                  <span>{errors.title}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -265,8 +390,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="description"
                 value={formData.description || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg h-32"
+                className="w-full p-3 border border-gray-300 rounded-lg h-32"
                 maxLength={1000}
+                disabled={loading}
               />
             </div>
 
@@ -278,11 +404,17 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="price"
                   value={formData.price || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
+                  className={`w-full p-3 border rounded-lg ${errors.price ? 'border-red-500' : 'border-gray-300'}`}
                   min="0"
                   step="0.01"
-                  required
+                  disabled={loading}
                 />
+                {errors.price && (
+                  <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                    <AlertCircle size={14} />
+                    <span>{errors.price}</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -291,7 +423,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="condition"
                   value={formData.condition || 'used'}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 >
                   <option value="new">New</option>
                   <option value="used">Used</option>
@@ -307,14 +440,20 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="category"
                   value={formData.category || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
-                  required
+                  className={`w-full p-3 border rounded-lg ${errors.category ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={loading}
                 >
                   <option value="">Select category</option>
                   {MARKETPLACE_CATEGORIES.map(category => (
                     <option key={category} value={category}>{category}</option>
                   ))}
                 </select>
+                {errors.category && (
+                  <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                    <AlertCircle size={14} />
+                    <span>{errors.category}</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -324,17 +463,27 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="location"
                   value={formData.location || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
-                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 />
               </div>
             </div>
-          </div>
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Saving...' : 'Save Listing'}
+              </button>
+            </div>
+          </form>
         );
 
       case 'business':
         return (
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <label className="block text-sm font-medium mb-2">Business Name *</label>
               <input
@@ -342,9 +491,15 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="name"
                 value={formData.name || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
-                required
+                className={`w-full p-3 border rounded-lg ${errors.name ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading}
               />
+              {errors.name && (
+                <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                  <AlertCircle size={14} />
+                  <span>{errors.name}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -353,8 +508,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="description"
                 value={formData.description || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg h-32"
+                className="w-full p-3 border border-gray-300 rounded-lg h-32"
                 maxLength={500}
+                disabled={loading}
               />
             </div>
 
@@ -365,13 +521,19 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="business_type"
                   value={formData.business_type || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
-                  required
+                  className={`w-full p-3 border rounded-lg ${errors.business_type ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={loading}
                 >
                   <option value="">Select type</option>
                   <option value="products">Products</option>
                   <option value="services">Services</option>
                 </select>
+                {errors.business_type && (
+                  <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                    <AlertCircle size={14} />
+                    <span>{errors.business_type}</span>
+                </div>
+                )}
               </div>
 
               <div>
@@ -381,10 +543,16 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="category"
                   value={formData.category || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
-                  required
+                  className={`w-full p-3 border rounded-lg ${errors.category ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={loading}
                   placeholder="e.g., Retail, Service"
                 />
+                {errors.category && (
+                  <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                    <AlertCircle size={14} />
+                    <span>{errors.category}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -394,7 +562,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="location_axis"
                 value={formData.location_axis || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
+                disabled={loading}
               >
                 <option value="">Select market area</option>
                 {MARKET_AREAS.map(area => (
@@ -410,7 +579,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="address"
                 value={formData.address || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
+                disabled={loading}
               />
             </div>
 
@@ -422,7 +592,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="email"
                   value={formData.email || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 />
               </div>
 
@@ -433,7 +604,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="phone"
                   value={formData.phone || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -445,16 +617,27 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="website"
                 value={formData.website || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
                 placeholder="https://example.com"
+                disabled={loading}
               />
             </div>
-          </div>
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Saving...' : 'Save Business'}
+              </button>
+            </div>
+          </form>
         );
 
       case 'job':
         return (
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <label className="block text-sm font-medium mb-2">Job Title *</label>
               <input
@@ -462,9 +645,15 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="title"
                 value={formData.title || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
-                required
+                className={`w-full p-3 border rounded-lg ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading}
               />
+              {errors.title && (
+                <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                  <AlertCircle size={14} />
+                  <span>{errors.title}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -473,8 +662,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="description"
                 value={formData.description || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg h-32"
+                className="w-full p-3 border border-gray-300 rounded-lg h-32"
                 maxLength={1000}
+                disabled={loading}
               />
             </div>
 
@@ -486,8 +676,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="salary"
                   value={formData.salary || ''}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg"
                   placeholder="e.g., ₦100,000/month"
+                  disabled={loading}
                 />
               </div>
 
@@ -497,7 +688,8 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                   name="job_type"
                   value={formData.job_type || 'full-time'}
                   onChange={handleChange}
-                  className="w-full p-3 border rounded-lg"
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 >
                   <option value="full-time">Full-time</option>
                   <option value="part-time">Part-time</option>
@@ -515,15 +707,26 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="location"
                 value={formData.location || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
+                disabled={loading}
               />
             </div>
-          </div>
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Saving...' : 'Save Job'}
+              </button>
+            </div>
+          </form>
         );
 
       case 'event':
         return (
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <label className="block text-sm font-medium mb-2">Event Title *</label>
               <input
@@ -531,9 +734,15 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="title"
                 value={formData.title || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
-                required
+                className={`w-full p-3 border rounded-lg ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading}
               />
+              {errors.title && (
+                <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                  <AlertCircle size={14} />
+                  <span>{errors.title}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -542,8 +751,9 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="description"
                 value={formData.description || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg h-32"
+                className="w-full p-3 border border-gray-300 rounded-lg h-32"
                 maxLength={1000}
+                disabled={loading}
               />
             </div>
 
@@ -554,9 +764,15 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="event_date"
                 value={formData.event_date || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
-                required
+                className={`w-full p-3 border rounded-lg ${errors.event_date ? 'border-red-500' : 'border-gray-300'}`}
+                disabled={loading}
               />
+              {errors.event_date && (
+                <div className="mt-1 flex items-center gap-1 text-red-600 text-sm">
+                  <AlertCircle size={14} />
+                  <span>{errors.event_date}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -566,10 +782,21 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
                 name="location"
                 value={formData.location || ''}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border border-gray-300 rounded-lg"
+                disabled={loading}
               />
             </div>
-          </div>
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? 'Saving...' : 'Save Event'}
+              </button>
+            </div>
+          </form>
         );
 
       default:
@@ -591,41 +818,48 @@ const EditModal: React.FC<Props> = ({ type, data, isOpen, onClose, onSave }) => 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
       <div className="bg-white w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl md:rounded-2xl">
-        {/* Header */}
         <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">{getTitle()}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+          <button 
+            onClick={onClose} 
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            type="button"
+            disabled={loading}
+          >
             <X size={24} />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4">
-          {renderForm()}
+        {success && (
+          <div className="m-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+            <CheckCircle className="text-green-600" size={20} />
+            <span className="text-green-700 font-medium">Changes saved successfully!</span>
+          </div>
+        )}
 
-          {errors.general && (
-            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-              {errors.general}
+        {errors.general && (
+          <div className="m-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertCircle className="text-red-600 mt-0.5 flex-shrink-0" size={20} />
+            <div>
+              <span className="text-red-700 font-medium">Error</span>
+              <p className="text-red-600 text-sm mt-1">{errors.general}</p>
             </div>
-          )}
+          </div>
+        )}
 
-          <div className="mt-6 flex gap-3">
+        <div className="p-4">
+          {renderForm()}
+          
+          {!loading && !success && (
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 border border-gray-300 rounded-lg font-medium"
+              className="w-full mt-4 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
     </div>
   );

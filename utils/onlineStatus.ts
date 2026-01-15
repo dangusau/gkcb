@@ -2,7 +2,7 @@ import { supabase } from '../services/supabase/client';
 
 // Throttle function to limit update frequency
 let lastUpdateTime = 0;
-const UPDATE_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const UPDATE_INTERVAL = 20 * 60 * 1000; // 20 minutes
 
 // Update user's last seen timestamp (throttled)
 export const updateLastSeen = async (): Promise<void> => {

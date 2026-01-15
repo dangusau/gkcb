@@ -1,7 +1,7 @@
 import { supabase } from './client';
 
 export const profileService = {
-  // Existing getter methods (unchanged)
+  // Existing getter methods
   async getProfileData(profileUserId: string, viewerId: string) {
     const userId = profileUserId === 'current' ? (await supabase.auth.getUser()).data.user?.id : profileUserId;
     const viewer = viewerId === 'current' ? (await supabase.auth.getUser()).data.user?.id : viewerId;
@@ -84,14 +84,13 @@ export const profileService = {
     return data;
   },
 
-  // NEW: Update profile data ONLY (no files)
+  // Update profile data ONLY (no files)
   async updateProfileData(profileData: any) {
     console.log('updateProfileData called with:', profileData);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
-    // Prepare update data (excluding avatar and header)
     const updateData: any = {
       first_name: profileData.first_name,
       last_name: profileData.last_name,
@@ -106,7 +105,6 @@ export const profileService = {
 
     console.log('Updating profile with:', updateData);
 
-    // Update profile in database
     const { data, error } = await supabase
       .from('profiles')
       .update(updateData)
@@ -123,14 +121,13 @@ export const profileService = {
     return { success: true, data };
   },
 
-  // NEW: Update profile avatar ONLY
+  // Update profile avatar ONLY
   async updateProfileAvatar(file: File) {
     console.log('updateProfileAvatar called with file:', file.name);
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
     
-    // 1. Upload the file to storage
     const fileExt = file.name.split('.').pop();
     const fileName = `avatar_${user.id}_${Date.now()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
@@ -149,14 +146,12 @@ export const profileService = {
       throw uploadError;
     }
 
-    // 2. Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('profile-images')
       .getPublicUrl(filePath);
 
     console.log('Avatar uploaded to:', publicUrl);
 
-    // 3. Update profile with new avatar URL
     const { data, error } = await supabase
       .from('profiles')
       .update({ 
@@ -176,14 +171,13 @@ export const profileService = {
     return { success: true, data };
   },
 
-  // NEW: Update profile header ONLY
+  // Update profile header ONLY
   async updateProfileHeader(file: File) {
     console.log('updateProfileHeader called with file:', file.name);
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
     
-    // 1. Upload the file to storage
     const fileExt = file.name.split('.').pop();
     const fileName = `header_${user.id}_${Date.now()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
@@ -202,14 +196,12 @@ export const profileService = {
       throw uploadError;
     }
 
-    // 2. Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('profile-images')
       .getPublicUrl(filePath);
 
     console.log('Header uploaded to:', publicUrl);
 
-    // 3. Update profile with new header URL
     const { data, error } = await supabase
       .from('profiles')
       .update({ 
@@ -229,7 +221,7 @@ export const profileService = {
     return { success: true, data };
   },
 
-  // NEW: Remove profile avatar
+  // Remove profile avatar
   async removeProfileAvatar() {
     console.log('removeProfileAvatar called');
     
@@ -255,7 +247,7 @@ export const profileService = {
     return { success: true, data };
   },
 
-  // NEW: Remove profile header
+  // Remove profile header
   async removeProfileHeader() {
     console.log('removeProfileHeader called');
     
@@ -281,7 +273,7 @@ export const profileService = {
     return { success: true, data };
   },
 
-  // Delete/Update functions for other items (unchanged)
+  // Delete/Update functions for other items
   async deletePost(postId: string) {
     const { error } = await supabase.rpc('delete_post', {
       p_post_id: postId
