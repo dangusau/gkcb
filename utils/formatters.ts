@@ -30,3 +30,16 @@ export const extractHashtags = (text: string): string[] => {
   const hashtags = text.match(/#\w+/g);
   return hashtags ? hashtags.map(tag => tag.substring(1)) : [];
 };
+
+export function formatMessagePreview(content: string | null, maxLength: number = 40): string {
+  if (!content) return 'No messages yet';
+  
+  if (content.length <= maxLength) return content;
+  return content.substring(0, maxLength) + '...';
+}
+
+// Format price
+export function formatPrice(price: number | null): string {
+  if (!price) return 'Price not set';
+  return `$${price.toFixed(2)}`;
+};

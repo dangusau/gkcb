@@ -1,11 +1,10 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import MobileAppWrapper from './components/MobileAppWrapper';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
-import { updateLastSeen } from './utils/onlineStatus';
 
 // Import pages
 import Home from './pages/Home';
@@ -24,28 +23,9 @@ import ListingDetails from './pages/ListingDetails';
 import Conversations from './pages/Conversations';
 import ChatWindow from './pages/ChatWindow';
 import NewConversation from './pages/NewConversation';
+import HelpSupport from './pages/HelpSupport';
 
 function App() {
-  useEffect(() => {
-    const handleActivity = () => {
-      updateLastSeen();
-    };
-
-    const events = ['click', 'keypress', 'scroll', 'mousemove'];
-    events.forEach(event => {
-      window.addEventListener(event, handleActivity);
-    });
-
-    const interval = setInterval(updateLastSeen, 30000);
-
-    return () => {
-      events.forEach(event => {
-        window.removeEventListener(event, handleActivity);
-      });
-      clearInterval(interval);
-    };
-  }, []);
-
   return (
     <Router>
       <AuthProvider>
@@ -54,6 +34,10 @@ function App() {
           <Route path="/signup" element={<SignUp />} />
           
           <Route element={<PrivateRoute />}>
+            {/* Chat pages - NO Layout wrapper (ChatWindow has its own UI) */}
+            <Route path="/messages/:conversationId" element={<ChatWindow />} />
+            
+            {/* All other pages - WITH Layout wrapper */}
             <Route path="/" element={
               <Layout>
                 <Home />
@@ -109,11 +93,6 @@ function App() {
                 <Conversations />
               </Layout>
             } />
-            <Route path="/messages/:conversationId" element={
-              <Layout>
-                <ChatWindow />
-              </Layout>
-            } />
             <Route path="/messages/new" element={
               <Layout>
                 <NewConversation />
@@ -127,6 +106,11 @@ function App() {
             <Route path="/settings" element={
               <Layout>
                 <Settings />
+              </Layout>
+            } />
+            <Route path="/help-support" element={
+              <Layout>
+                <HelpSupport />
               </Layout>
             } />
           </Route>

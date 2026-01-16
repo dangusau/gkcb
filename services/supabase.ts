@@ -129,3 +129,13 @@ export const getSession = async () => {
   if (error) throw error
   return session
 }
+
+export type PostgresChangesPayload<T = any> = {
+  commit_timestamp: string;
+  errors: any[];
+  schema: string;
+  table: string;
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new: T;
+  old: T | null;
+};

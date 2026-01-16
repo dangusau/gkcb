@@ -15,14 +15,14 @@ const Members: React.FC = () => {
   const [businessType, setBusinessType] = useState('');
   const [marketArea, setMarketArea] = useState('');
 
-  const { 
-    receivedRequests, 
-    friends, 
-    loading: connectionsLoading, 
-    loadReceivedRequests, 
-    loadFriends, 
-    acceptRequest, 
-    rejectRequest 
+  const {
+    receivedRequests,
+    friends,
+    loading: connectionsLoading,
+    loadReceivedRequests,
+    loadFriends,
+    acceptRequest,
+    rejectRequest
   } = useConnections();
 
   const marketAreas = [
@@ -48,12 +48,12 @@ const Members: React.FC = () => {
       setLoading(true);
       const currentPage = reset ? 0 : page;
       const data = await membersService.getMembers(search, businessType, marketArea, currentPage, 20);
-      
+
       // Filter out already connected members from All Members tab
-      const filteredData = data.filter(member => 
+      const filteredData = data.filter(member =>
         member.connection_status !== 'accepted'
       );
-      
+
       if (reset) {
         setMembers(filteredData);
         setPage(1);
@@ -61,7 +61,7 @@ const Members: React.FC = () => {
         setMembers(prev => [...prev, ...filteredData]);
         setPage(prev => prev + 1);
       }
-      
+
       setHasMore(data.length === 20);
     } catch (error) {
       console.error('Error loading members:', error);
@@ -82,8 +82,8 @@ const Members: React.FC = () => {
   const handleConnect = async (memberId: string) => {
     try {
       await membersService.sendConnectionRequest(memberId);
-      setMembers(prev => prev.map(member => 
-        member.id === memberId 
+      setMembers(prev => prev.map(member =>
+        member.id === memberId
           ? { ...member, connection_status: 'pending' }
           : member
       ));
@@ -115,8 +115,8 @@ const Members: React.FC = () => {
             onClick={() => handleConnect(member.id)}
             className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm border border-blue-700"
           >
-            <UserPlus size={14} />
-            Connect
+                <UserPlus size={14} />
+                Connect
           </button>
         );
     }
@@ -141,8 +141,8 @@ const Members: React.FC = () => {
       {/* Tabs */}
       <div className="sticky top-0 z-20 bg-white border-b border-blue-200">
         <div className="flex">
-          <button 
-            onClick={() => setActiveTab('all')} 
+          <button
+            onClick={() => setActiveTab('all')}
             className={`flex-1 py-3 text-center font-medium ${activeTab === 'all' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             <div className="flex items-center justify-center gap-2">
@@ -150,8 +150,8 @@ const Members: React.FC = () => {
               All Members
             </div>
           </button>
-          <button 
-            onClick={() => setActiveTab('connections')} 
+          <button
+            onClick={() => setActiveTab('connections')}
             className={`flex-1 py-3 text-center font-medium relative ${activeTab === 'connections' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
             <div className="flex items-center justify-center gap-2">
@@ -289,8 +289,8 @@ const Members: React.FC = () => {
                         <div className="flex items-center gap-3">
                           <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full overflow-hidden border-2 border-blue-300 shadow flex-shrink-0">
                             {member.avatar_url ? (
-                              <img 
-                                src={member.avatar_url} 
+                              <img
+                                src={member.avatar_url}
                                 alt={member.full_name}
                                 className="w-full h-full object-cover"
                               />
