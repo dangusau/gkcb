@@ -24,6 +24,7 @@ import Conversations from './pages/Conversations';
 import ChatWindow from './pages/ChatWindow';
 import NewConversation from './pages/NewConversation';
 import HelpSupport from './pages/HelpSupport';
+import PendingApproval from './pages/PendingApproval';
 
 function App() {
   return (
@@ -32,7 +33,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
-          
+          <Route path="/pending-approval" element={<PendingApproval />} />
           <Route element={<PrivateRoute />}>
             {/* Chat pages - NO Layout wrapper (ChatWindow has its own UI) */}
             <Route path="/messages/:conversationId" element={<ChatWindow />} />
