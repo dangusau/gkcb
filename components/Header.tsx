@@ -5,6 +5,23 @@ import { supabase } from '../services/supabase';
 import { messagingService } from '../services/supabase/messaging';
 import { notificationService } from '../services/supabase/notifications';
 
+/**
+ * Header Component
+ * 
+ * Main app header with user profile, notifications, and messages.
+ * Features:
+ * - Gradient background
+ * - User profile menu
+ * - Unread message/notification badges
+ * - Back navigation support
+ * - Mobile-optimized layout
+ * 
+ * Mobile Optimization Notes:
+ * - pt-safe class handles safe area insets
+ * - Fixed positioning at top
+ * - Touch-friendly button sizes
+ * - Responsive user display
+ */
 interface HeaderProps {
   userName?: string;
   userAvatar?: string;
@@ -28,10 +45,12 @@ const Header: React.FC<HeaderProps> = ({
   // Message badge state
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   
-  // Notification badge state - IMPLEMENTED LIKE CHAT
+  // Notification badge state
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
-  // Load user data
+  /**
+   * Loads current user data and profile information
+   */
   useEffect(() => {
     const getCurrentUser = async () => {
       try {
@@ -77,7 +96,9 @@ const Header: React.FC<HeaderProps> = ({
     getCurrentUser();
   }, []);
 
-  // Load message count - same as existing
+  /**
+   * Loads unread message count
+   */
   const loadMessageCount = async () => {
     try {
       const count = await messagingService.getTotalUnreadCount();
@@ -87,7 +108,9 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  // Load notification count - NEW, SAME PATTERN AS MESSAGES
+  /**
+   * Loads unread notification count
+   */
   const loadNotificationCount = async () => {
     try {
       const count = await notificationService.getUnreadCount();
@@ -100,11 +123,13 @@ const Header: React.FC<HeaderProps> = ({
   // Refresh notification count when returning from notifications page
   useEffect(() => {
     if (location.pathname !== '/notifications') {
-      // User left notifications page, refresh count
       loadNotificationCount();
     }
   }, [location.pathname]);
 
+  /**
+   * Handles user logout
+   */
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
@@ -115,10 +140,16 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  /**
+   * Navigates to messages page
+   */
   const handleNavigateToMessages = () => {
     navigate('/messages');
   };
 
+  /**
+   * Navigates to notifications page
+   */
   const handleNavigateToNotifications = () => {
     navigate('/notifications');
   };
@@ -142,7 +173,8 @@ const Header: React.FC<HeaderProps> = ({
             {showBack ? (
               <button
                 onClick={onBack || (() => navigate(-1))}
-                className="p-2 -ml-2 text-white hover:bg-white/10 rounded-xl transition-all"
+                className="p-2 -ml-2 text-white hover:bg-white/10 rounded-xl transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Go back"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -152,6 +184,10 @@ const Header: React.FC<HeaderProps> = ({
               <div
                 onClick={() => navigate('/home')}
                 className="flex items-center gap-2 cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyPress={(e) => e.key === 'Enter' && navigate('/home')}
+                aria-label="Go to home"
               >
                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden">
                   <img 
@@ -170,7 +206,7 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
                 <div className="hidden sm:block">
                   <h1 className="text-xl font-black text-white tracking-tight drop-shadow-md">GKBC</h1>
-                  <p className="text-white/90 text-xs font-medium">......</p>
+                  <p className="text-white/90 text-xs font-medium">Business Network</p>
                 </div>
               </div>
             )}
@@ -178,11 +214,12 @@ const Header: React.FC<HeaderProps> = ({
 
           {/* Right: User Actions */}
           <div className="flex items-center gap-3">
-            {/* Notification Button - SAME PATTERN AS MESSAGES */}
+            {/* Notification Button */}
             <button
               onClick={handleNavigateToNotifications}
-              className="relative p-2.5 bg-white/10 rounded-xl text-white hover:bg-white/20 transition-all"
+              className="relative p-2.5 bg-white/10 rounded-xl text-white hover:bg-white/20 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Notifications"
+              aria-label={`Notifications ${unreadNotificationCount > 0 ? `(${unreadNotificationCount} unread)` : ''}`}
             >
               <Bell size={20} />
               {unreadNotificationCount > 0 && (
@@ -192,11 +229,12 @@ const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Messages Button - EXISTING */}
+            {/* Messages Button */}
             <button
               onClick={handleNavigateToMessages}
-              className="relative p-2.5 bg-white/10 rounded-xl text-white hover:bg-white/20 transition-all"
+              className="relative p-2.5 bg-white/10 rounded-xl text-white hover:bg-white/20 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Messages"
+              aria-label={`Messages ${unreadMessageCount > 0 ? `(${unreadMessageCount} unread)` : ''}`}
             >
               <MessageCircle size={20} />
               {unreadMessageCount > 0 && (
@@ -210,7 +248,9 @@ const Header: React.FC<HeaderProps> = ({
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2 p-1.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                className="flex items-center gap-2 p-1.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all min-h-[44px]"
+                aria-label="User profile menu"
+                aria-expanded={showProfileMenu}
               >
                 <div className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden ring-2 ring-white/50 bg-white">
                   {profileData?.avatar_url ? (
@@ -239,6 +279,7 @@ const Header: React.FC<HeaderProps> = ({
                   <div
                     className="fixed inset-0 z-40"
                     onClick={() => setShowProfileMenu(false)}
+                    role="presentation"
                   />
                   <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                     <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
@@ -275,7 +316,8 @@ const Header: React.FC<HeaderProps> = ({
                               navigate(item.path);
                             }
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-blue-50 transition-colors hover:text-blue-700"
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-blue-50 transition-colors hover:text-blue-700 min-h-[44px]"
+                          aria-label={item.label}
                         >
                           <item.icon size={16} className="text-gray-500" />
                           <span className="text-sm font-medium">{item.label}</span>

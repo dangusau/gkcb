@@ -1,5 +1,20 @@
 import React, { ReactNode } from 'react';
 
+/**
+ * MobileAppWrapper Component
+ * 
+ * Wraps app content for mobile optimization with safe area handling.
+ * Features:
+ * - iOS safe area insets support
+ * - Maximum width constraint for mobile
+ * - Tablet/desktop centering with shadow
+ * - No console warnings from jsx/global props
+ * 
+ * Mobile Optimization Notes:
+ * - Uses env(safe-area-inset-top/bottom) for notched devices
+ * - Constrains content to 640px max for optimal mobile viewing
+ * - Centers app on larger screens with gradient background
+ */
 interface MobileAppWrapperProps {
   children: ReactNode;
 }
@@ -20,8 +35,8 @@ const MobileAppWrapper: React.FC<MobileAppWrapperProps> = ({ children }) => {
       {/* iOS Safe Area Bottom - Only for wrapper content */}
       <div className="h-[env(safe-area-inset-bottom)] bg-transparent" />
       
-      {/* Tablet/Desktop centering */}
-      <style jsx global>{`
+      {/* Tablet/Desktop centering - Using CSS instead of style jsx */}
+      <style>{`
         /* For tablets/desktops: center ONLY the content area */
         @media (min-width: 641px) {
           body {

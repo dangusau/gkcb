@@ -225,6 +225,7 @@ const LoginStatusModal: React.FC<{
  * Handles user authentication with mobile optimization for Capacitor.
  * Features include:
  * - 4-case login logic based on credentials and approval status
+ * - Admin role detection and redirection
  * - Secure authentication with Supabase
  * - Profile approval status checking
  * - Mobile-responsive design
@@ -398,13 +399,14 @@ const Login: React.FC = () => {
   };
 
   /**
-   * Handles login form submission
-   * Implements 4-case logic:
-   * 1. Credentials correct + approved → Login success
-   * 2. Credentials correct + pending → Pending feedback
-   * 3. Credentials correct + rejected → Rejection feedback
-   * 4. Credentials incorrect → Credentials feedback
-   * 5. No account → Sign up feedback
+   * Handles login form submission with role-based routing
+   * Implements 4-case logic with admin detection:
+   * 1. Credentials correct + approved + admin role → Admin dashboard
+   * 2. Credentials correct + approved + user role → User home
+   * 3. Credentials correct + pending → Pending feedback
+   * 4. Credentials correct + rejected → Rejection feedback
+   * 5. Credentials incorrect → Credentials feedback
+   * 6. No account → Sign up feedback
    */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -421,7 +423,7 @@ const Login: React.FC = () => {
     try {
       const loginStatus = await checkLoginStatus(formData.email.trim(), formData.password.trim());
       
-      // Case 4: Credentials incorrect
+      // Case 5: Credentials incorrect
       if (loginStatus.status === 'credentials_incorrect') {
         setLoginStatus('credentials_incorrect');
         setShowStatusModal(true);
@@ -429,7 +431,7 @@ const Login: React.FC = () => {
         return;
       }
       
-      // Case 5: No account found
+      // Case 6: No account found
       if (loginStatus.status === 'no_account') {
         setLoginStatus('no_account');
         setShowStatusModal(true);
@@ -437,22 +439,22 @@ const Login: React.FC = () => {
         return;
       }
       
-      // Cases 1-3: Credentials correct
+      // Cases 1-4: Credentials correct
       if (loginStatus.status === 'credentials_correct' && loginStatus.profile) {
         const profile = loginStatus.profile;
         
-        // Case 1: Approved
+        // Case 1 & 2: Approved (admin or user)
         if (profile.approval_status === 'approved') {
-          // Check if admin
-          if (profile.role === 'admin') {
-            navigate('/admin/dashboard');
+          // Check role - admin gets different dashboard
+          if (profile.role === 'admin' || profile.role === 'super_admin') {
+            navigate('/admin/dashboard'); // Admin dashboard
           } else {
-            navigate('/home');
+            navigate('/home'); // Regular user home
           }
           return;
         }
         
-        // Case 2: Pending
+        // Case 3: Pending
         if (profile.approval_status === 'pending') {
           setLoginStatus('pending');
           setShowStatusModal(true);
@@ -460,7 +462,7 @@ const Login: React.FC = () => {
           return;
         }
         
-        // Case 3: Rejected
+        // Case 4: Rejected
         if (profile.approval_status === 'rejected') {
           setLoginStatus('rejected');
           setShowStatusModal(true);
@@ -560,7 +562,7 @@ const Login: React.FC = () => {
                 </span>
               </h1>
               <p className="text-sm text-gray-500 text-center font-medium mt-1">
-                Global Knowledge Business Community
+                Africa's Emerging Economic Vanguard
               </p>
             </div>
             
@@ -708,15 +710,8 @@ const Login: React.FC = () => {
                   Forgot your password?
                 </button>
                 
-                <button
-                  onClick={() => navigate('/admin/login')}
-                  className="w-full text-center text-gray-600 hover:text-gray-800 font-medium text-sm py-3 rounded-lg border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 active:bg-gray-100 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
-                  aria-label="Administrator login"
-                >
-                  <Shield size={14} />
-                  <span>Administrator Access</span>
-                  <ArrowRight size={14} />
-                </button>
+                {/* Removed Administrator Access button */}
+                {/* Admins will automatically be redirected based on role */}
               </div>
             </div>
           </div>
@@ -740,7 +735,7 @@ const Login: React.FC = () => {
                 <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mb-1">
                   <Smartphone size={14} className="text-white" />
                 </div>
-                <span className="text-xs text-gray-600 font-medium">Mobile</span>
+                <span className="text-xs text-gray-600 font-medium">GKBC</span>
               </div>
             </div>
           </div>
